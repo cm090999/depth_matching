@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
 import pykitti as pk
 import matplotlib.pyplot as plt
 import torch
 import PIL.Image as pil
 from torchvision import transforms
 import numpy as np
+import cv2
+import matplotlib.cm as cm
 
 from monodepth2.utils import download_model_if_doesnt_exist
 import monodepth2.networks as networks
@@ -12,9 +15,12 @@ import monodepth2.networks as networks
 from ST_depth_correspondence import helper_func
 from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano
 
+from SuperGluePretrainedNetwork.models.matching import Matching
+from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot, estimate_pose
+
 if __name__ == "__main__":
     # Set if plots should be created (to debug)
-    debug = True
+    debug = False
     plt.ioff()
     
     ## Load two images from KITTI, 2 LiDAR point clouds and the provided calibration data ##
@@ -45,8 +51,8 @@ if __name__ == "__main__":
     v_res=0.42
     h_res=0.35
 
-    range0 = velo_points_2_pano(velo0, v_res, h_res, v_fov, h_fov, depth=False)
-    range1 = velo_points_2_pano(velo1, v_res, h_res, v_fov, h_fov, depth=False)
+    range0 = velo_points_2_pano(velo0, v_res, h_res, v_fov, h_fov, depth=False).astype(float)
+    range1 = velo_points_2_pano(velo1, v_res, h_res, v_fov, h_fov, depth=False).astype(float)
 
     if debug == True:
         # display result image
@@ -82,28 +88,43 @@ if __name__ == "__main__":
     depth_decoder.eval()
 
     # Convert image to input to monodepth2
-    original_width, original_height = image0.size
+    original_width0, original_height0 = image0.size
+    original_width1, original_height1 = image1.size
 
-    feed_height = loaded_dict_enc['height']
-    feed_width = loaded_dict_enc['width']
-    image0_resized = image0.resize((feed_width, feed_height), pil.LANCZOS)
+    feed_height0 = loaded_dict_enc['height']
+    feed_width0 = loaded_dict_enc['width']
+    feed_height1 = loaded_dict_enc['height']
+    feed_width1 = loaded_dict_enc['width']
+    image0_resized = image0.resize((feed_width0, feed_height0), pil.LANCZOS)
+    image1_resized = image1.resize((feed_width1, feed_height1), pil.LANCZOS)
 
     image0_pytorch = transforms.ToTensor()(image0_resized).unsqueeze(0)
+    image1_pytorch = transforms.ToTensor()(image1_resized).unsqueeze(0)
 
     # Monodepth2 inference
     with torch.no_grad():
-        features = encoder(image0_pytorch)
-        outputs = depth_decoder(features)
+        features0 = encoder(image0_pytorch)
+        features1 = encoder(image1_pytorch)
+        outputs0 = depth_decoder(features0)
+        outputs1 = depth_decoder(features1)
 
-    disp = outputs[("disp", 0)]
+    disp0 = outputs0[("disp", 0)]
+    disp1 = outputs1[("disp", 0)]
 
     # Resize image to original format
-    disp_resized = torch.nn.functional.interpolate(disp,
-        (original_height, original_width), mode="bilinear", align_corners=False)
+    disp0_resized = torch.nn.functional.interpolate(disp0,
+        (original_height0, original_width0), mode="bilinear", align_corners=False)
+    disp1_resized = torch.nn.functional.interpolate(disp1,
+        (original_height1, original_width1), mode="bilinear", align_corners=False)
+    
+    # Save images
+    depth0_md2 = disp0_resized.squeeze().cpu().numpy()
+    depth1_md2 = disp1_resized.squeeze().cpu().numpy()
+
 
     if debug == True:
         # Plot colormapped depth image
-        disp_resized_np = disp_resized.squeeze().cpu().numpy()
+        disp_resized_np = disp0_resized.squeeze().cpu().numpy()
         vmax = np.percentile(disp_resized_np, 95)
 
         plt.figure(figsize=(10, 10))
@@ -118,6 +139,118 @@ if __name__ == "__main__":
         plt.axis('off')
         plt.show()
 
-    print('FINISHED')
+    print('FINISHED CREATING DEPTH IMAGES AND RANGE MAPS')
+
+    ## Match features using superglue ##
+
+    # Config Options
+    nms_radius = 8 # SuperPoint Non Maximum Suppression (NMS) radius (Must be positive), default=4, type = int
+    sinkhorn_iterations = 50 # Number of Sinkhorn iterations performed by SuperGlue , default=20, type=int
+    match_threshold = 0.4 # SuperGlue match threshold, default=0.2, type=float
+    keypoint_threshold = 0.005 # SuperPoint keypoint detector confidence threshold, default=0.005, type=float
+    max_keypoints = 1024 # Maximum number of keypoints detected by Superpoint (\'-1\' keeps all keypoints), default=1024, type=int
+    superglue = 'outdoor' # SuperGlue weights, choices={'indoor', 'outdoor'}, default='indoor'
+
+    # Load the SuperPoint and SuperGlue models.
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print('Running inference on device \"{}\"'.format(device))
+    config = {
+        'superpoint': {
+            'nms_radius': nms_radius,
+            'keypoint_threshold': keypoint_threshold,
+            'max_keypoints': max_keypoints
+        },
+        'superglue': {
+            'weights': superglue,
+            'sinkhorn_iterations': sinkhorn_iterations,
+            'match_threshold': match_threshold,
+        }
+    }
+    matching = Matching(config).eval().to(device)
+
+    # Tranform image0 for matching
+    inp0 = frame2tensor(range0, device)
+
+    ## Apply SuperGlue + Pose Estimation for first image with n_time next images
+
+    # Initialize Empty lists to store results
+    R_rel_list_SuperGlue = []
+    t_rel_list_SuperGlue = []
+
+    R_rel_list_cv2 = []
+    t_rel_list_cv2 = []
+
+    output_dir = Path().absolute() / 'KITTI_RES'
+    output_dir.mkdir(exist_ok=True, parents=True)
+
+    for i in range(1,2):
+
+        fileName = str(i).zfill(3) + '.png'
+        savePath = output_dir / fileName
+
+        # Tranform and normalize images
+        inp0 = frame2tensor((depth0_md2 - np.min(depth0_md2)) / np.max(depth0_md2) * 255, device)
+        inp1 = frame2tensor((range0 - np.min(range0)) / np.max(range0) * 255, device)
+
+        # Perform the matching.
+        pred = matching({'image0': inp0, 'image1': inp1})
+        pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
+        kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
+        matches, conf = pred['matches0'], pred['matching_scores0']
+
+        # Keep the matching keypoints.
+        valid = matches > -1
+        mkpts0 = kpts0[valid]
+        mkpts1 = kpts1[matches[valid]]
+        mconf = conf[valid]
+
+        # Visualize the matches.
+        color = cm.jet(mconf)
+        text = [
+            'SuperGlue',
+            'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
+            'Matches: {}'.format(len(mkpts0)),
+        ]
+
+        ## Make Plot
+        # Display extra parameter info.
+        k_thresh = matching.superpoint.config['keypoint_threshold']
+        m_thresh = matching.superglue.config['match_threshold']
+
+        make_matching_plot(
+            depth0_md2 / np.max(depth0_md2) * 255, range0 / np.max(range0) * 255, kpts0, kpts1, mkpts0, mkpts1, color,
+            text, savePath, show_keypoints=True,
+            fast_viz=True, opencv_display=True, opencv_title='Matches')
+
+        # Pose Estimation with provided function
+        pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)
+        if pose != None:
+            R_rel_list_SuperGlue.append(pose[0])
+            t_rel_list_SuperGlue.append(pose[1])
+
+        # essential_matrix, inliers_ess = cv2.findEssentialMat(mkpts0,mkpts1,K_gt,threshold=1.0, prob=0.99999, method=cv2.RANSAC)
+
+        # # Get relative pose of the two images
+        # _, R_rel,t_rel, inliers_pose = cv2.recoverPose(essential_matrix,mkpts0,mkpts1,K_gt)
+        # R_rel_list_cv2.append(R_rel)
+        # t_rel_list_cv2.append(t_rel)
+
+    resDict = {'R_rel_list_SuperGlue': R_rel_list_SuperGlue,
+               't_rel_list_SuperGlue': t_rel_list_SuperGlue,
+               'R_rel_list_cv2': R_rel_list_cv2,
+               't_rel_list_cv2': t_rel_list_cv2}
+    
+
+
+    fout = output_dir / 'Pose.txt'
+    fo = open(fout, "w")
+
+    for k, v in resDict.items():
+        fo.write(str(k) + ' >>> ' + '\n\n')
+        for i in range(len(v)):
+            fo.write(str(v[i]) + '\n')
+            fo.write('\n')
+
+    fo.close()
 
 
