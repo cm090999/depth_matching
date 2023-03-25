@@ -1,0 +1,12 @@
+[submodule "KITTI_Tutorial"]
+	path = KITTI_Tutorial
+	url = https://github.com/windowsub0406/KITTI_Tutorial.git
+[submodule "monodepth2"]
+	path = monodepth2
+	url = https://github.com/nianticlabs/monodepth2.git
+[submodule "SuperGluePretrainedNetwork"]
+	path = SuperGluePretrainedNetwork
+	url = https://github.com/magicleap/SuperGluePretrainedNetwork.git
+[submodule "ST_depth_correspondence"]
+	path = ST_depth_correspondence
+	url = https://github.com/cm090999/ST_depth_correspondence.git
