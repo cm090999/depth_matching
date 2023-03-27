@@ -48,8 +48,8 @@ if __name__ == "__main__":
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
     v_fov, h_fov = (-25, 0), (-180,180)
-    v_res=0.42
-    h_res=0.35
+    v_res=0.8 #0.42
+    h_res=0.8 #0.35
 
     range0 = velo_points_2_pano(velo0, v_res, h_res, v_fov, h_fov, depth=False).astype(float)
     range1 = velo_points_2_pano(velo1, v_res, h_res, v_fov, h_fov, depth=False).astype(float)
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     ## Match features using superglue ##
 
     # Config Options
-    nms_radius = 8 # SuperPoint Non Maximum Suppression (NMS) radius (Must be positive), default=4, type = int
+    nms_radius = 4 # SuperPoint Non Maximum Suppression (NMS) radius (Must be positive), default=4, type = int
     sinkhorn_iterations = 50 # Number of Sinkhorn iterations performed by SuperGlue , default=20, type=int
     match_threshold = 0.4 # SuperGlue match threshold, default=0.2, type=float
     keypoint_threshold = 0.005 # SuperPoint keypoint detector confidence threshold, default=0.005, type=float
