@@ -47,9 +47,9 @@ if __name__ == "__main__":
 
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (-25, 0), (-180,180)
-    v_res=0.8 #0.42
-    h_res=0.8 #0.35
+    v_fov, h_fov = (-24.9, 2), (-180,180)
+    v_res=0.6#0.42
+    h_res=0.6#0.35
 
     range0 = velo_points_2_pano(velo0, v_res, h_res, v_fov, h_fov, depth=False).astype(float)
     range1 = velo_points_2_pano(velo1, v_res, h_res, v_fov, h_fov, depth=False).astype(float)

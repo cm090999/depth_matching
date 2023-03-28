@@ -2,4 +2,5 @@
 Dataset/*
 !Dataset/raw_data_downloader.sh
 models
+__pycache__/*
 
