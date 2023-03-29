@@ -150,6 +150,10 @@ if __name__ == "__main__":
     output_dir_md2 = output_dir_tf / 'monodepth2'
     output_dir_md2.mkdir(exist_ok=True, parents=True)
 
+    # Define directory to save monodepth2 images
+    output_dir_proj = output_dir_tf / 'reprojection'
+    output_dir_proj.mkdir(exist_ok=True, parents=True)
+
     for i in range(nframes):
         # Keep unmodified range image for PnP
         rangeImage_tmp = rangeImages[i]
@@ -169,6 +173,7 @@ if __name__ == "__main__":
         savePathMatches = output_dir_matches / fileName
         savePathRange = output_dir_range / fileName
         savePathmd2 = output_dir_md2 / fileName
+        savePathproj = output_dir_proj / fileName
 
         # Save Range Images and monodepth2 images
         cv2.imwrite(str(savePathmd2),monodepthImages[i])
@@ -208,8 +213,27 @@ if __name__ == "__main__":
             text, savePathMatches, show_keypoints=True,
             fast_viz=True, opencv_display=True, opencv_title='Matches')
         
+        # Get number of matches
+        nmatches, _ = np.shape(mkpts0)
+
+        if nmatches >= 4:
+
         # Get 3d Coordinates from matches
-        matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+            matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+            matches_2d = mkpts0
+
+            # Solve PnP problem
+            _,Rvec,tvec = cv2.solvePnP(matches_3d,matches_2d,K_gt,np.array([[0],[0],[0],[0]]))  #,flags=cv2.SOLVEPNP_ITERATIVE
+
+            # Append solution to list
+            R_rel_list_cv2.append(Rvec)
+            t_rel_list_cv2.append(tvec)
+
+            # Reproject LiDAR to image
+            R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
+            velo_tf = helper_func.transformPC(velodata[i],R_pnp)
+            
+            helper_func.plotOverlay(rgb = images[i],lidar = velo_tf, savepath=savePathproj)
 
         # Pose Estimation with provided function
         pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)
@@ -219,8 +243,6 @@ if __name__ == "__main__":
         else:
             R_rel_list_SuperGlue.append(-1)
             t_rel_list_SuperGlue.append(-1)
-
-        # Solve Pnp problem using the matches: 3D points from range image, 2D points from grayscale image
 
     # Define dict to extract results
     resDict = {'R_rel_list_SuperGlue': R_rel_list_SuperGlue,
