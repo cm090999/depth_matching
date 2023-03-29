@@ -3,4 +3,5 @@ Dataset/*
 !Dataset/raw_data_downloader.sh
 models
 __pycache__/*
+KITTI_RES/*
 
