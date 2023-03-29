@@ -19,10 +19,7 @@ from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano
 from SuperGluePretrainedNetwork.models.matching import Matching
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot, estimate_pose
 
-from utils import loadmonodepthModel
-from utils import convertImageToMonodepth2
-from utils import evaluateMonodepth2
-from utils import upsampleRangeImage
+from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2, upsampleRangeImage, get3dpointFromRangeimage
 
 if __name__ == "__main__":
     # Set if plots should be created (to debug)
@@ -154,6 +151,8 @@ if __name__ == "__main__":
     output_dir_md2.mkdir(exist_ok=True, parents=True)
 
     for i in range(nframes):
+        # Keep unmodified range image for PnP
+        rangeImage_tmp = rangeImages[i]
 
         # Normalize Images
         monodepthImages[i] = ((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255
@@ -199,7 +198,7 @@ if __name__ == "__main__":
             'Matches: {}'.format(len(mkpts0)),
         ]
 
-        ## Make Plot
+        # Make Plot
         # Display extra parameter info.
         k_thresh = matching.superpoint.config['keypoint_threshold']
         m_thresh = matching.superglue.config['match_threshold']
@@ -208,6 +207,9 @@ if __name__ == "__main__":
             monodepthImages[i], rangeImages[i], kpts0, kpts1, mkpts0, mkpts1, color,
             text, savePathMatches, show_keypoints=True,
             fast_viz=True, opencv_display=True, opencv_title='Matches')
+        
+        # Get 3d Coordinates from matches
+        matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
 
         # Pose Estimation with provided function
         pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)

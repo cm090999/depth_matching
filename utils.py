@@ -70,3 +70,46 @@ def upsampleRangeImage(rangeImage,factor):
     resized = cv2.resize(rangeImage,(factor*width,factor*heigth), interpolation=cv2.INTER_LINEAR)
     blurred = cv2.GaussianBlur(resized,(5,5),0)
     return blurred
+
+
+def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamplefactor, depth = False):
+    # Scale coordinates if image is upsampled
+    kpts /= upsamplefactor
+
+    # Initialize coordinate frame
+    velopts = np.zeros((np.shape(kpts)[0],3))
+
+    # Values from kitti_tutorial_func
+    vmax = 120
+    vmin = 0
+
+    x_offset = h_fov[0] / h_res
+    y_offset = v_fov[1] / v_res
+
+    # Transform depth values to real distances
+    if depth == True:
+        depim = vmax - 1/255*rangeImage * (vmax - vmin)
+    if depth == False:
+        depim = vmin + 1/255*rangeImage * (vmax - vmin)
+    
+    ## Get angles of all the kpts
+    # add the offset back
+    x_uncent = kpts[:,0] + x_offset
+    y_uncent = kpts[:,1] - y_offset - 1
+    # consider filtered points by FOV setting
+
+    # 0 degrees at horizontal line, positive upwards
+    verticalAngle = - np.arctan(y_uncent[:] * v_res * np.pi / 180)
+    # 0 degrees facing forward on the kitti car, positive to left (positive z rotation), for reference see KITTI setup at https://www.cvlibs.net/datasets/kitti/setup.php
+    horizontalAngle = - np.arctan(x_uncent[:] * h_res * np.pi / 180.0)
+
+    # Calculate z
+    velopts[:,2] = depim[x_uncent[:].astype(int),y_uncent[:].astype(int)] * np.sin(verticalAngle)
+
+    # Calculate x
+    velopts[:,0] = depim[x_uncent[:].astype(int),y_uncent[:].astype(int)] * np.sin(horizontalAngle)
+
+    # Calculate y
+    velopts[:,1] = depim[x_uncent[:].astype(int),y_uncent[:].astype(int)] * np.cos(horizontalAngle)
+
+    return velopts
