@@ -90,24 +90,7 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
         depim = vmax - 1/255*rangeImage * (vmax - vmin)
     if depth == False:
         depim = vmin + 1/255*rangeImage * (vmax - vmin)
-
-    # # 0 index horizontal angle
-    # h_angle_0 = h_fov[0]
-    # h_angle_end = h_fov[1]
-
-    # x_offset = h_fov[0] / h_res
-    # y_offset = v_fov[1] / v_res
-    
-    ## Get angles of all the kpts
-    # add the offset back
-    # x_uncent = kpts[:,0] + x_offset
-    # y_uncent = kpts[:,1] - y_offset - 1
-    # consider filtered points by FOV setting
-
-    # 0 degrees at horizontal line, positive upwards
-    # verticalAngle = - np.arctan(y_uncent[:] * v_res * np.pi / 180)
-    # # 0 degrees facing forward on the kitti car, positive to left (positive z rotation), for reference see KITTI setup at https://www.cvlibs.net/datasets/kitti/setup.php
-    # horizontalAngle = - np.arctan(x_uncent[:] * h_res * np.pi / 180.0)
+        
     verticalAngle = v_fov[0] + (v_fov[1] - v_fov[1]) * kptsy[:]
     horizontalAngle = h_fov[0] + (h_fov[1] - h_fov[1]) * kptsx[:]
 

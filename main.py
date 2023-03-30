@@ -23,7 +23,7 @@ from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodept
 
 if __name__ == "__main__":
     # Set if plots should be created (to debug)
-    debug = False
+    debug = True
     plt.ioff()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
@@ -45,8 +45,8 @@ if __name__ == "__main__":
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
     v_fov, h_fov = (-24.9, 2), (-180,180)
-    v_res=0.8#0.42
-    h_res=0.8#0.35
+    v_res=0.8 #0.42
+    h_res=0.8 #0.35
 
     # Images and LiDAR in grayscale
     images = []
@@ -233,7 +233,7 @@ if __name__ == "__main__":
             R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
             velo_tf = helper_func.transformPC(velodata[i],R_pnp)
             
-            helper_func.plotOverlay(rgb = images[i],lidar = velo_tf, savepath=savePathproj)
+            # helper_func.plotOverlay(rgb = images[i],lidar = velo_tf, savepath=savePathproj)
 
         # Pose Estimation with provided function
         pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)
