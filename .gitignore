@@ -4,6 +4,7 @@ Dataset/*
 models
 __pycache__/*
 __pycache__
-KITTI_RES
-
+*/__pycache__
+__pycache__/
+**/__pycache__/
 
