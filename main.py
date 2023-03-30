@@ -32,8 +32,9 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 10
-    upsampleFactor = 6
+    nframes = 100
+    upsampleFactor = 1
+    smoothing = False
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
@@ -44,7 +45,7 @@ if __name__ == "__main__":
 
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (-24.9, 2), (-180,180)
+    v_fov, h_fov = (-24.9, 2), (-60,60)
     v_res=0.8 #0.42
     h_res=0.8 #0.35
 
@@ -155,15 +156,21 @@ if __name__ == "__main__":
     output_dir_proj.mkdir(exist_ok=True, parents=True)
 
     for i in range(nframes):
+        print('Work on Frame #' + str(i))
+
         # Keep unmodified range image for PnP
         rangeImage_tmp = rangeImages[i]
 
-        # Normalize Images
-        monodepthImages[i] = ((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255
-        rangeImages[i] = ((rangeImages[i] - np.min(rangeImages[i])) / np.max(rangeImages[i])) * 255
+        # Normalize Images and verify to be same type
+        monodepthImages[i] = (((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255).astype(np.uint8)
+        rangeImages[i] = (((rangeImages[i] - np.min(rangeImages[i])) / np.max(rangeImages[i])) * 255).astype(np.uint8)
 
         # Resize range image
         rangeImages[i] = upsampleRangeImage(rangeImages[i],upsampleFactor)
+
+        # Apply Gaussian Blur
+        if smoothing == True:
+            rangeImages[i] = cv2.GaussianBlur(rangeImages[i],(5,5),0)
 
         # Histogram equalization
         monodepthImages[i] = cv2.equalizeHist(monodepthImages[i].astype(np.uint8))
@@ -216,7 +223,7 @@ if __name__ == "__main__":
         # Get number of matches
         nmatches, _ = np.shape(mkpts0)
 
-        if nmatches >= 4:
+        if nmatches >= 6:
 
         # Get 3d Coordinates from matches
             matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
@@ -231,9 +238,10 @@ if __name__ == "__main__":
 
             # Reproject LiDAR to image
             R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
-            velo_tf = helper_func.transformPC(velodata[i],R_pnp)
+            # velo_tf = helper_func.transformPC(velodata[i],R_pnp)
+            depthimage = helper_func.veloToDepthImage(K_gt,velodata[i],images[i],R_pnp,mode = 'z', trackPoints=False)
             
-            # helper_func.plotOverlay(rgb = images[i],lidar = velo_tf, savepath=savePathproj)
+            helper_func.plotOverlay(rgb = images[i],lidar = depthimage, savePath=savePathproj, returnAxis = False)
 
         # Pose Estimation with provided function
         pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)

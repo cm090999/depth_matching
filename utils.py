@@ -68,8 +68,7 @@ def evaluateMonodepth2(imagePT, encoder, depth_decoder, original_height, origina
 def upsampleRangeImage(rangeImage,factor):
     heigth, width = np.shape(rangeImage)
     resized = cv2.resize(rangeImage,(factor*width,factor*heigth), interpolation=cv2.INTER_LINEAR)
-    blurred = cv2.GaussianBlur(resized,(5,5),0)
-    return blurred
+    return resized
 
 
 def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamplefactor, depth = False):
