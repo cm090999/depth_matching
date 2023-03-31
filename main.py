@@ -19,7 +19,7 @@ from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano
 from SuperGluePretrainedNetwork.models.matching import Matching
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot, estimate_pose
 
-from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2, upsampleRangeImage, get3dpointFromRangeimage
+from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2, upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints
 
 if __name__ == "__main__":
     # Set if plots should be created (to debug)
@@ -32,9 +32,10 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 100
+    nframes = 50
     upsampleFactor = 1
     smoothing = False
+    checkPC = False
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
@@ -45,9 +46,9 @@ if __name__ == "__main__":
 
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (-24.9, 2), (-60,60)
-    v_res=0.8 #0.42
-    h_res=0.8 #0.35
+    v_fov, h_fov = (-24.8, 2), (-60,60)
+    v_res=0.42 # 0.42
+    h_res=0.35
 
     # Images and LiDAR in grayscale
     images = []
@@ -229,6 +230,9 @@ if __name__ == "__main__":
             matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
             matches_2d = mkpts0
 
+            if checkPC == True:
+                plot3dPoints(velodata[i],matches_3d)
+
             # Solve PnP problem
             _,Rvec,tvec = cv2.solvePnP(matches_3d,matches_2d,K_gt,np.array([[0],[0],[0],[0]]))  #,flags=cv2.SOLVEPNP_ITERATIVE
 
@@ -238,7 +242,6 @@ if __name__ == "__main__":
 
             # Reproject LiDAR to image
             R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
-            # velo_tf = helper_func.transformPC(velodata[i],R_pnp)
             depthimage = helper_func.veloToDepthImage(K_gt,velodata[i],images[i],R_pnp,mode = 'z', trackPoints=False)
             
             helper_func.plotOverlay(rgb = images[i],lidar = depthimage, savePath=savePathproj, returnAxis = False)

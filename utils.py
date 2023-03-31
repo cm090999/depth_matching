@@ -4,6 +4,7 @@ from torchvision import transforms
 import PIL.Image as pil
 import cv2
 import numpy as np
+import open3d as o3d
 
 from monodepth2.utils import download_model_if_doesnt_exist
 import monodepth2.networks as networks
@@ -103,3 +104,33 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
     velopts[:,1] = depim[kptsx[:].astype(int),kptsy[:].astype(int)] * np.cos(horizontalAngle)
 
     return velopts
+
+def plot3dPoints(lidar,reprojection):
+
+    _,dim = np.shape(lidar)
+    if dim == 4:
+        lidar = lidar[:,0:3]
+
+    lidarpc = o3d.geometry.PointCloud()
+    lidarpc.points = o3d.utility.Vector3dVector(lidar)
+    lidarpc.colors = o3d.utility.Vector3dVector(np.c_[ np.ones((len(lidar),1)) , np.zeros((len(lidar),1)) , np.zeros((len(lidar),1)) ]) 
+
+
+    reprojpc = o3d.geometry.PointCloud()
+    reprojpc.points = o3d.utility.Vector3dVector(reprojection)
+    reprojpc.colors = o3d.utility.Vector3dVector(np.c_[ np.zeros((len(reprojection),1)) , np.ones((len(reprojection),1)) , np.zeros((len(reprojection),1)) ])
+
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+    opt = vis.get_render_option()
+    opt.background_color = np.zeros((3))
+    opt.show_coordinate_frame = True
+
+    vis.add_geometry(lidarpc)
+    vis.add_geometry(reprojpc)
+
+    vis.run()
+
+    vis.destroy_window()
+
+    return

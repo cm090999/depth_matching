@@ -77,3 +77,34 @@ def velo_points_2_pano(points, v_res, h_res, v_fov, h_fov, depth=False):
     img[y_img, x_img] = dist
     
     return img
+
+def velo_to_range(points,v_res, h_res, v_fov, h_fov):
+
+    # Get coordinates and distances
+    x = points[:,0]
+    y = points[:,1]
+    z = points[:,2]
+    dist = np.sqrt(x**2 + y**2 + z**2)
+
+    # Get all vertical angles
+    verticalAngles = np.arccos(z/dist)
+
+    # Get all horizontal angles
+    horizontalAngles = np.arctan(y/x)
+
+    # Filter based on FOV setting
+    verticalAngles = verticalAngles[(verticalAngles >= v_fov[0])]
+    verticalAngles = verticalAngles[(verticalAngles <= v_fov[1])]
+    horizontalAngles = horizontalAngles[(horizontalAngles >= h_fov[0])]
+    horizontalAngles = horizontalAngles[(horizontalAngles <= h_fov[1])]
+
+    # Shift angles to all be positive
+    verticalAnglesShifted = verticalAngles + np.min(verticalAngles)
+    horizontalAnglesShifted = horizontalAngles + np.min(horizontalAngles)
+
+    # Get maximum shifted angles
+    vertMax = np.max(verticalAnglesShifted)
+    horizMax = np.max(horizontalAnglesShifted)
+
+    # Get average Spacing between points
+    
