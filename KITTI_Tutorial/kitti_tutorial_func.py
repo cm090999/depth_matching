@@ -107,4 +107,9 @@ def velo_to_range(points,v_res, h_res, v_fov, h_fov):
     horizMax = np.max(horizontalAnglesShifted)
 
     # Get average Spacing between points
-    
+    horizDiffs = horizontalAnglesShifted[1:-1] - horizontalAnglesShifted[0:-2]
+    vertiDiffs = verticalAnglesShifted[1:-1] - verticalAnglesShifted[0:-2]
+
+    #Get ratios
+    vertRatio = vertiDiffs[1:-1] / vertiDiffs[0:-2]
+    horiRatio = horizDiffs[1:-1] / horizDiffs[0:-2]
