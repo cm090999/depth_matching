@@ -14,7 +14,7 @@ from monodepth2.utils import download_model_if_doesnt_exist
 import monodepth2.networks as networks
 
 from ST_depth_correspondence import helper_func
-from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano
+from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano, velo_to_range
 
 from SuperGluePretrainedNetwork.models.matching import Matching
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot, estimate_pose
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     nframes = 50
     upsampleFactor = 1
     smoothing = False
-    checkPC = False
+    checkPC = True
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
@@ -46,9 +46,9 @@ if __name__ == "__main__":
 
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (-24.8, 2), (-60,60)
-    v_res=0.42 # 0.42
-    h_res=0.35
+    v_fov, h_fov = (2, -24.8), (-60,60) ### START AT TOP LEFT OF IMAGE
+    v_res= 0.42 # 0.42
+    h_res= 0.35 # 0.35
 
     # Images and LiDAR in grayscale
     images = []
@@ -57,12 +57,12 @@ if __name__ == "__main__":
     for i in range(nframes):
         images.append(kitti_raw.get_cam3(i))
         velodata.append(kitti_raw.get_velo(i)[:,0:3])
-        rangeImages.append(velo_points_2_pano(velodata[i], v_res, h_res, v_fov, h_fov, depth=True).astype(float))
+        # rangeImages.append(velo_points_2_pano(velodata[i], v_res, h_res, v_fov, h_fov, depth=True).astype(float))
+        rangeImages.append(velo_to_range(velodata[i], v_res=v_res, h_res=h_res, v_fov=v_fov, h_fov=h_fov,recursive=True, scaling = 0.99).astype(float))
 
     if debug == True:
         # display result image
         figrange, axrange = plt.subplots(1,1, figsize = (13,3) )
-        # plt.title("Result of Vertical FOV ({} , {}) & Horizontal FOV ({} , {})".format(v_fov[0],v_fov[1],h_fov[0],h_fov[1]))
         axrange.imshow(rangeImages[0])
         axrange.axis('off')
         plt.show()
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         rangeImage_tmp = rangeImages[i]
 
         # Normalize Images and verify to be same type
-        monodepthImages[i] = (((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255).astype(np.uint8)
+        monodepthImages[i] = (((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255 * (-1) + 1).astype(np.uint8)
         rangeImages[i] = (((rangeImages[i] - np.min(rangeImages[i])) / np.max(rangeImages[i])) * 255).astype(np.uint8)
 
         # Resize range image
@@ -223,6 +223,10 @@ if __name__ == "__main__":
         
         # Get number of matches
         nmatches, _ = np.shape(mkpts0)
+
+        if checkPC == True:
+                keypts = get3dpointFromRangeimage(rangeImage_tmp,kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
+                plot3dPoints(velodata[i],keypts)
 
         if nmatches >= 6:
 

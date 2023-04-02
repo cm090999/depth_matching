@@ -73,10 +73,29 @@ def upsampleRangeImage(rangeImage,factor):
 
 
 def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamplefactor, depth = False):
-    # Scale coordinates if image is upsampled
-    kpts /= upsamplefactor
-    kptsx = kpts[:,1]
-    kptsy = kpts[:,0]
+    # # Scale coordinates if image is upsampled
+    # kpts /= upsamplefactor
+
+    # Get shape of range image
+    px_y, px_x = np.shape(rangeImage)
+
+    # Get x, y image coordinates
+    kptsx = kpts[:,0]
+    kptsy = kpts[:,1]
+    # kptsdepth = rangeImage[kptsy.astype(int),kptsx.astype(int)]
+
+    # Get angles from range image
+    v_fov_range = np.absolute(v_fov[1] - v_fov[0])
+    h_fov_range = np.absolute(h_fov[1] - h_fov[0])
+    v_fov_topleft = v_fov[0]
+    h_fov_topleft = h_fov[0]
+    v_fov_ascending = np.sign(v_fov[1] - v_fov[0])
+    h_fov_ascending = np.sign(h_fov[1] - h_fov[0])
+
+    # Get angles from keypoints
+    vert_ang_kpts = v_fov_topleft + v_fov_ascending * v_fov_range / px_y * kptsy
+    horz_ang_kpts = h_fov_topleft + h_fov_ascending * h_fov_range / px_x * kptsx
+
 
     # Initialize coordinate frame
     velopts = np.zeros((np.shape(kpts)[0],3))
@@ -90,18 +109,29 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
         depim = vmax - 1/255*rangeImage * (vmax - vmin)
     if depth == False:
         depim = vmin + 1/255*rangeImage * (vmax - vmin)
-        
-    verticalAngle = v_fov[0] + (v_fov[1] - v_fov[1]) * kptsy[:]
-    horizontalAngle = h_fov[0] + (h_fov[1] - h_fov[1]) * kptsx[:]
+    if depth == -1:
+        depim = rangeImage
+
+    depim = rangeImage[kptsy.astype(int),kptsx.astype(int)]
 
     # Calculate z
-    velopts[:,2] = depim[kptsx[:].astype(int),kptsy[:].astype(int)] * np.sin(verticalAngle)
+    velopts[:,2] = depim * np.tan(vert_ang_kpts * np.pi / 180)
 
-    # Calculate x
-    velopts[:,0] = depim[kptsx[:].astype(int),kptsy[:].astype(int)] * np.sin(horizontalAngle)
+    ydivx = depim * np.tan(horz_ang_kpts * np.pi / 180)
+    #    y = alpha * x
 
-    # Calculate y
-    velopts[:,1] = depim[kptsx[:].astype(int),kptsy[:].astype(int)] * np.cos(horizontalAngle)
+    # velopts[:,0] = np.sqrt((depim**2 - velopts[:,2]**2) / (1 + ydivx**2))
+    # #   dist**2 = x**2 + y**2 + z**2 = x**2 + (alpha * x)**2 + z**2
+    # #   dist**2 - z**2 = (1 + alpha**2) * x**2
+    # #   np.sqrt((dist**2 - z**2) / (1 + alpha**2)) = x
+
+    # velopts[:,1] = ydivx * velopts[:,0]
+
+    # # Calculate x
+    velopts[:,0] = depim * np.cos(horz_ang_kpts * np.pi / 180)
+
+    # # Calculate y
+    velopts[:,1] = depim * np.sin(horz_ang_kpts * np.pi / 180)
 
     return velopts
 

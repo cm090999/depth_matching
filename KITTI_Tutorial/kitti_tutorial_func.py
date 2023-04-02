@@ -78,7 +78,10 @@ def velo_points_2_pano(points, v_res, h_res, v_fov, h_fov, depth=False):
     
     return img
 
-def velo_to_range(points,v_res, h_res, v_fov, h_fov):
+def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = True, scaling = 0.95):
+    """
+    v_res,h_res in degrees
+    """
 
     # Get coordinates and distances
     x = points[:,0]
@@ -87,29 +90,77 @@ def velo_to_range(points,v_res, h_res, v_fov, h_fov):
     dist = np.sqrt(x**2 + y**2 + z**2)
 
     # Get all vertical angles
-    verticalAngles = np.arccos(z/dist)
+    verticalAngles = np.arctan2(z, dist) / np.pi * 180 # Degrees
 
     # Get all horizontal angles
-    horizontalAngles = np.arctan(y/x)
+    horizontalAngles = np.arctan2(-y, x) / np.pi * 180 # Degrees
 
     # Filter based on FOV setting
-    verticalAngles = verticalAngles[(verticalAngles >= v_fov[0])]
-    verticalAngles = verticalAngles[(verticalAngles <= v_fov[1])]
-    horizontalAngles = horizontalAngles[(horizontalAngles >= h_fov[0])]
-    horizontalAngles = horizontalAngles[(horizontalAngles <= h_fov[1])]
+    combined_condition = (verticalAngles < v_fov[0]) & (verticalAngles > v_fov[1]) & (horizontalAngles > h_fov[0]) & (horizontalAngles < h_fov[1])
+
+    verticalAngles = verticalAngles[combined_condition]
+    horizontalAngles = horizontalAngles[combined_condition]
+    dist = dist[combined_condition]
 
     # Shift angles to all be positive
-    verticalAnglesShifted = verticalAngles + np.min(verticalAngles)
-    horizontalAnglesShifted = horizontalAngles + np.min(horizontalAngles)
+    # verticalAnglesShifted = verticalAngles + np.abs(np.min(verticalAngles))
+    # horizontalAnglesShifted = horizontalAngles + np.abs(np.min(horizontalAngles))
+    verticalAnglesShifted = (verticalAngles - v_fov[0]) * -1
+    horizontalAnglesShifted = horizontalAngles - h_fov[0]
 
     # Get maximum shifted angles
     vertMax = np.max(verticalAnglesShifted)
     horizMax = np.max(horizontalAnglesShifted)
 
-    # Get average Spacing between points
-    horizDiffs = horizontalAnglesShifted[1:-1] - horizontalAnglesShifted[0:-2]
-    vertiDiffs = verticalAnglesShifted[1:-1] - verticalAnglesShifted[0:-2]
+    # Get Number of pixels in range image
+    # vertPix = (vertMax / v_res).astype(int)
+    # horiPix = (horizMax / h_res).astype(int)
+    vertPix = int((np.absolute(v_fov[1] - v_fov[0]) / v_res))
+    horiPix = int((np.absolute(h_fov[1] - h_fov[0]) / h_res))
 
-    #Get ratios
-    vertRatio = vertiDiffs[1:-1] / vertiDiffs[0:-2]
-    horiRatio = horizDiffs[1:-1] / horizDiffs[0:-2]
+    # Initialize Range image
+    rangeImage = np.zeros((vertPix,horiPix),dtype=float)
+
+    # Get image coordinates of all points
+    # x_img_fl = np.round(horizontalAnglesShifted / horizMax * (horiPix - 1))
+    # y_img_fl = np.round(verticalAnglesShifted / vertMax* (vertPix - 1))
+    x_img_fl = np.round(horizontalAnglesShifted / np.absolute(h_fov[1] - h_fov[0]) * (horiPix - 1))
+    y_img_fl = np.round(verticalAnglesShifted / np.absolute(v_fov[1] - v_fov[0]) * (vertPix - 1))
+    x_img = x_img_fl.astype(int)
+    y_img = y_img_fl.astype(int)
+
+    # Fill values in range image
+    rangeImage[y_img, x_img] = dist
+
+    if recursive == True:
+        scale = 1
+        for i in range(6):
+            # Define new scaling 
+            scale *= scaling
+            # Get empty values
+            empty_pixels_mask = rangeImage == 0
+
+            red_rangeImage = velo_to_range(points, v_res / scale, h_res / scale, v_fov, h_fov, recursive = False)
+            redheight, redwidth = np.shape(red_rangeImage)
+            red_x, red_y = np.meshgrid(np.arange(redwidth), np.arange(redheight))
+            red_y = red_y.flatten().astype(float)
+            red_x = red_x.flatten().astype(float)
+            red_depth = red_rangeImage.flatten()
+
+            # Rescale coordinates to match original image
+            red_y = red_y / redheight * (vertPix)
+            red_x = red_x / redwidth * (horiPix)
+
+            # Round and convert to int
+            red_y = np.round(red_y).astype(int)
+            red_x = np.round(red_x).astype(int)
+
+            # Consider only coordinates that are empty in original depth image
+            condition = empty_pixels_mask[red_y,red_x]
+            red_x = red_x[condition]
+            red_y = red_y[condition]
+            red_depth = red_depth[condition]
+
+            rangeImage[red_y,red_x] = red_depth
+
+    return rangeImage
