@@ -32,10 +32,10 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 50
-    upsampleFactor = 1
+    nframes = 20
+    upsampleFactor = 6
     smoothing = False
-    checkPC = True
+    checkPC = False
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
@@ -130,11 +130,8 @@ if __name__ == "__main__":
     ## Apply SuperGlue + Pose Estimation for first image with n_time next images
 
     # Initialize Empty lists to store results
-    R_rel_list_SuperGlue = []
-    t_rel_list_SuperGlue = []
-
-    R_rel_list_cv2 = []
-    t_rel_list_cv2 = []
+    numberMatches = []
+    T_rel = []
 
     # Define directory to save transformations
     output_dir_tf = Path().absolute() / 'KITTI_RES'
@@ -152,7 +149,7 @@ if __name__ == "__main__":
     output_dir_md2 = output_dir_tf / 'monodepth2'
     output_dir_md2.mkdir(exist_ok=True, parents=True)
 
-    # Define directory to save monodepth2 images
+    # Define directory to save reprojected images
     output_dir_proj = output_dir_tf / 'reprojection'
     output_dir_proj.mkdir(exist_ok=True, parents=True)
 
@@ -238,32 +235,26 @@ if __name__ == "__main__":
                 plot3dPoints(velodata[i],matches_3d)
 
             # Solve PnP problem
-            _,Rvec,tvec = cv2.solvePnP(matches_3d,matches_2d,K_gt,np.array([[0],[0],[0],[0]]))  #,flags=cv2.SOLVEPNP_ITERATIVE
+            _,Rvec,tvec = cv2.solvePnP(matches_3d,matches_2d,K_gt,np.array([[0],[0],[0],[0]]), flags=cv2.SOLVEPNP_ITERATIVE)  #,flags=cv2.SOLVEPNP_ITERATIVE
 
             # Append solution to list
-            R_rel_list_cv2.append(Rvec)
-            t_rel_list_cv2.append(tvec)
+            T_rel_i = helper_func.rtvec_to_matrix(Rvec,tvec)
+            T_rel.append(T_rel_i)
 
             # Reproject LiDAR to image
             R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
-            depthimage = helper_func.veloToDepthImage(K_gt,velodata[i],images[i],R_pnp,mode = 'z', trackPoints=False)
+            depthimageTF = helper_func.veloToDepthImage(K_gt,velodata[i],images[i],R_pnp,mode = 'z', trackPoints=False)
             
-            helper_func.plotOverlay(rgb = images[i],lidar = depthimage, savePath=savePathproj, returnAxis = False)
+            helper_func.plotOverlay(rgb = images[i],lidar = depthimageTF, savePath=savePathproj, returnAxis = False)
 
-        # Pose Estimation with provided function
-        pose = estimate_pose(mkpts0,mkpts1,K_gt,K_gt,1.)
-        if pose != None:
-            R_rel_list_SuperGlue.append(pose[0])
-            t_rel_list_SuperGlue.append(pose[1])
         else:
-            R_rel_list_SuperGlue.append(-1)
-            t_rel_list_SuperGlue.append(-1)
+            T_rel.append(None)
+
+        numberMatches.append(nmatches)
 
     # Define dict to extract results
-    resDict = {'R_rel_list_SuperGlue': R_rel_list_SuperGlue,
-               't_rel_list_SuperGlue': t_rel_list_SuperGlue,
-               'R_rel_list_cv2': R_rel_list_cv2,
-               't_rel_list_cv2': t_rel_list_cv2}
+    resDict = {'T_rel': T_rel,
+               'Number of Matches': nmatches}
     
     # Define location to save results
     fout = output_dir_tf / 'Pose.txt'

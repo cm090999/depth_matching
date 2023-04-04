@@ -36,7 +36,7 @@ cd Dataset
 Install dependencies:
 
 ```
-pip install pykitti pillow opencv-python numpy
+pip install matplotlib pykitti pillow opencv-python numpy open3d
 ```
 
 To install pytorch:

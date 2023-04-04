@@ -74,7 +74,7 @@ def upsampleRangeImage(rangeImage,factor):
 
 def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamplefactor, depth = False):
     # # Scale coordinates if image is upsampled
-    # kpts /= upsamplefactor
+    kpts /= upsamplefactor
 
     # Get shape of range image
     px_y, px_x = np.shape(rangeImage)
@@ -131,7 +131,7 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
     velopts[:,0] = depim * np.cos(horz_ang_kpts * np.pi / 180)
 
     # # Calculate y
-    velopts[:,1] = depim * np.sin(horz_ang_kpts * np.pi / 180)
+    velopts[:,1] = -depim * np.sin(horz_ang_kpts * np.pi / 180)
 
     return velopts
 
