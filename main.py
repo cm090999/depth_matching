@@ -29,8 +29,8 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 20
-    upsampleFactor = 6
+    nframes = 50
+    upsampleFactor = 1
     smoothing = False
     checkPC = False
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (2, -24.8), (-60,60) ### START AT TOP LEFT OF IMAGE
+    v_fov, h_fov = (2, -24.8), (-180,180) ### START AT TOP LEFT OF IMAGE
     v_res= 0.42 # 0.42
     h_res= 0.35 # 0.35
 
