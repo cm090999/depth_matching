@@ -10,14 +10,11 @@ import numpy as np
 import cv2
 import matplotlib.cm as cm
 
-from monodepth2.utils import download_model_if_doesnt_exist
-import monodepth2.networks as networks
-
 from ST_depth_correspondence import helper_func
 from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano, velo_to_range
 
 from SuperGluePretrainedNetwork.models.matching import Matching
-from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot, estimate_pose
+from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
 
 from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2, upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints
 
@@ -235,7 +232,7 @@ if __name__ == "__main__":
                 plot3dPoints(velodata[i],matches_3d)
 
             # Solve PnP problem
-            _,Rvec,tvec = cv2.solvePnP(matches_3d,matches_2d,K_gt,np.array([[0],[0],[0],[0]]), flags=cv2.SOLVEPNP_ITERATIVE)  #,flags=cv2.SOLVEPNP_ITERATIVE
+            _,Rvec,tvec,_ = cv2.solvePnPRansac(matches_3d,matches_2d,K_gt,np.zeros((1,4)))  #,flags=cv2.SOLVEPNP_ITERATIVE
 
             # Append solution to list
             T_rel_i = helper_func.rtvec_to_matrix(Rvec,tvec)
@@ -254,7 +251,7 @@ if __name__ == "__main__":
 
     # Define dict to extract results
     resDict = {'T_rel': T_rel,
-               'Number of Matches': nmatches}
+               'Number of Matches': numberMatches}
     
     # Define location to save results
     fout = output_dir_tf / 'Pose.txt'
@@ -262,15 +259,19 @@ if __name__ == "__main__":
 
     # Safe Ground Truth
     fo.write('T_GroundTruth >>> \n\n')
-    fo.write(str(T_gt) + '\n')
+    fo.write(str(T_gt) + '\n\n')
 
-    # Safe result dict
-    for k, v in resDict.items():
-        fo.write(str(k) + ' >>> ' + '\n\n')
-        for i in range(len(v)):
-            fo.write(str(i) + ': \n')
-            fo.write(str(v[i]) + '\n')
-            fo.write('\n')
+    # Get keys
+    resKeys = [key for key in resDict.keys()]
+    ndict = len(resDict[resKeys[0]])
+
+    # Safe results in dict
+    for i in range(ndict):
+        fo.write(str(i) + ': \n')
+        for j in range(len(resKeys)):
+            fo.write(str(resKeys[j]) + '>>>' + '\n')
+            fo.write(str( resDict[resKeys[j]][i] ) + '\n')
+        fo.write('\n\n')
 
     fo.close()
 
