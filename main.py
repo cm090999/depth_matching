@@ -1,26 +1,17 @@
-import os
-from pathlib import Path
 import pykitti as pk
 import matplotlib.pyplot as plt
 import torch
-import PIL.Image as pil
-from PIL import Image
-from torchvision import transforms
 import numpy as np
-import cv2
-import matplotlib.cm as cm
 
-from ST_depth_correspondence import helper_func
-from KITTI_Tutorial.kitti_tutorial_func import velo_points_2_pano, velo_to_range
+from match_SuperGlue import matchSuperglue
 
-from SuperGluePretrainedNetwork.models.matching import Matching
-from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
+from KITTI_Tutorial.kitti_tutorial_func import velo_to_range
 
-from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2, upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints
+from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2
 
 if __name__ == "__main__":
     # Set if plots should be created (to debug)
-    debug = True
+    debug = False
     plt.ioff()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
@@ -29,7 +20,7 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 50
+    nframes = 5
     upsampleFactor = 1
     smoothing = False
     checkPC = False
@@ -122,157 +113,7 @@ if __name__ == "__main__":
             'match_threshold': match_threshold,
         }
     }
-    matching = Matching(config).eval().to(device)
 
-    ## Apply SuperGlue + Pose Estimation for first image with n_time next images
+    savePath = 'RES_SuperGlue'
 
-    # Initialize Empty lists to store results
-    numberMatches = []
-    T_rel = []
-
-    # Define directory to save transformations
-    output_dir_tf = Path().absolute() / 'KITTI_RES'
-    output_dir_tf.mkdir(exist_ok=True, parents=True)
-
-    # Define directory to save matches
-    output_dir_matches = output_dir_tf / 'Matches'
-    output_dir_matches.mkdir(exist_ok=True, parents=True)
-
-    # Define directory to save range images
-    output_dir_range = output_dir_tf / 'Range'
-    output_dir_range.mkdir(exist_ok=True, parents=True)
-
-    # Define directory to save monodepth2 images
-    output_dir_md2 = output_dir_tf / 'monodepth2'
-    output_dir_md2.mkdir(exist_ok=True, parents=True)
-
-    # Define directory to save reprojected images
-    output_dir_proj = output_dir_tf / 'reprojection'
-    output_dir_proj.mkdir(exist_ok=True, parents=True)
-
-    for i in range(nframes):
-        print('Work on Frame #' + str(i))
-
-        # Keep unmodified range image for PnP
-        rangeImage_tmp = rangeImages[i]
-
-        # Normalize Images and verify to be same type
-        monodepthImages[i] = (((monodepthImages[i] - np.min(monodepthImages[i])) / np.max(monodepthImages[i])) * 255 * (-1) + 1).astype(np.uint8)
-        rangeImages[i] = (((rangeImages[i] - np.min(rangeImages[i])) / np.max(rangeImages[i])) * 255).astype(np.uint8)
-
-        # Resize range image
-        rangeImages[i] = upsampleRangeImage(rangeImages[i],upsampleFactor)
-
-        # Apply Gaussian Blur
-        if smoothing == True:
-            rangeImages[i] = cv2.GaussianBlur(rangeImages[i],(5,5),0)
-
-        # Histogram equalization
-        monodepthImages[i] = cv2.equalizeHist(monodepthImages[i].astype(np.uint8))
-        rangeImages[i] = cv2.equalizeHist(rangeImages[i].astype(np.uint8))
-
-        fileName = str(i).zfill(3) + '.png'
-        savePathMatches = output_dir_matches / fileName
-        savePathRange = output_dir_range / fileName
-        savePathmd2 = output_dir_md2 / fileName
-        savePathproj = output_dir_proj / fileName
-
-        # Save Range Images and monodepth2 images
-        cv2.imwrite(str(savePathmd2),monodepthImages[i])
-        cv2.imwrite(str(savePathRange),rangeImages[i])
-
-        # Tranform and normalize images
-        inp0 = frame2tensor(monodepthImages[i], device)
-        inp1 = frame2tensor(rangeImages[i], device)
-
-        # Perform the matching.
-        pred = matching({'image0': inp0, 'image1': inp1})
-        pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
-        kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
-        matches, conf = pred['matches0'], pred['matching_scores0']
-
-        # Keep the matching keypoints.
-        valid = matches > -1
-        mkpts0 = kpts0[valid]
-        mkpts1 = kpts1[matches[valid]]
-        mconf = conf[valid]
-
-        # Visualize the matches.
-        color = cm.jet(mconf)
-        text = [
-            'SuperGlue',
-            'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
-            'Matches: {}'.format(len(mkpts0)),
-        ]
-
-        # Make Plot
-        # Display extra parameter info.
-        k_thresh = matching.superpoint.config['keypoint_threshold']
-        m_thresh = matching.superglue.config['match_threshold']
-
-        make_matching_plot(
-            monodepthImages[i], rangeImages[i], kpts0, kpts1, mkpts0, mkpts1, color,
-            text, savePathMatches, show_keypoints=True,
-            fast_viz=True, opencv_display=True, opencv_title='Matches')
-        
-        # Get number of matches
-        nmatches, _ = np.shape(mkpts0)
-
-        if checkPC == True:
-                keypts = get3dpointFromRangeimage(rangeImage_tmp,kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
-                plot3dPoints(velodata[i],keypts)
-
-        if nmatches >= 6:
-
-        # Get 3d Coordinates from matches
-            matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
-            matches_2d = mkpts0
-
-            if checkPC == True:
-                plot3dPoints(velodata[i],matches_3d)
-
-            # Solve PnP problem
-            _,Rvec,tvec,_ = cv2.solvePnPRansac(matches_3d,matches_2d,K_gt,np.zeros((1,4)))  #,flags=cv2.SOLVEPNP_ITERATIVE
-
-            # Append solution to list
-            T_rel_i = helper_func.rtvec_to_matrix(Rvec,tvec)
-            T_rel.append(T_rel_i)
-
-            # Reproject LiDAR to image
-            R_pnp = helper_func.rtvec_to_matrix(Rvec, tvec)
-            depthimageTF = helper_func.veloToDepthImage(K_gt,velodata[i],images[i],R_pnp,mode = 'z', trackPoints=False)
-            
-            helper_func.plotOverlay(rgb = images[i],lidar = depthimageTF, savePath=savePathproj, returnAxis = False)
-
-        else:
-            T_rel.append(None)
-
-        numberMatches.append(nmatches)
-
-    # Define dict to extract results
-    resDict = {'T_rel': T_rel,
-               'Number of Matches': numberMatches}
-    
-    # Define location to save results
-    fout = output_dir_tf / 'Pose.txt'
-    fo = open(fout, "w")
-
-    # Safe Ground Truth
-    fo.write('T_GroundTruth >>> \n\n')
-    fo.write(str(T_gt) + '\n\n')
-
-    # Get keys
-    resKeys = [key for key in resDict.keys()]
-    ndict = len(resDict[resKeys[0]])
-
-    # Safe results in dict
-    for i in range(ndict):
-        fo.write(str(i) + ': \n')
-        for j in range(len(resKeys)):
-            fo.write(str(resKeys[j]) + '>>>' + '\n')
-            fo.write(str( resDict[resKeys[j]][i] ) + '\n')
-        fo.write('\n\n')
-
-    fo.close()
-
-
+    matchSuperglue(monodepthImages, rangeImages, images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, config = config, savePath = savePath, device = device, smoothing = smoothing, upsampleFactor = upsampleFactor, checkPC = checkPC)
