@@ -4,6 +4,7 @@ import torch
 import numpy as np
 
 from match_SuperGlue import matchSuperglue
+from match_LoFTR import matchLoFTR
 
 from KITTI_Tutorial.kitti_tutorial_func import velo_to_range
 
@@ -89,8 +90,9 @@ if __name__ == "__main__":
 
     print('FINISHED CREATING DEPTH IMAGES AND RANGE MAPS')
 
-    ## Match features using superglue ##
+#######################################
 
+    ## Match features using superglue ##
     # Config Options
     nms_radius = 4 # SuperPoint Non Maximum Suppression (NMS) radius (Must be positive), default=4, type = int
     sinkhorn_iterations = 50 # Number of Sinkhorn iterations performed by SuperGlue , default=20, type=int
@@ -114,6 +116,39 @@ if __name__ == "__main__":
         }
     }
 
-    savePath = 'RES_SuperGlue'
+    savePath_SuperGlue = 'RES_SuperGlue'
 
-    matchSuperglue(monodepthImages, rangeImages, images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, config = config, savePath = savePath, device = device, smoothing = smoothing, upsampleFactor = upsampleFactor, checkPC = checkPC)
+    matchSuperglue(monodepthImages, 
+                   rangeImages, 
+                   images, 
+                   velodata, 
+                   v_fov, h_fov, v_res, h_res, T_gt, K_gt, 
+                   config = config, 
+                   savePath = savePath_SuperGlue, 
+                   device = device, 
+                   smoothing = smoothing, 
+                   upsampleFactor = upsampleFactor, 
+                   checkPC = checkPC)
+
+#######################################
+
+    # LoFTR Settings
+    resize = -1 #help='Resize the input image before running inference. If two numbers, resize to the exact dimensions, if one number, resize the max dimension, if -1, do not resize
+    weight = '../LoFTR/weights/indoor_ds.ckpt'
+
+    opt = {'resize': resize,
+           'weight': weight}
+    
+    savePath_LoFTR = 'RES_LoFTR'
+
+    matchLoFTR(monodepthImages, 
+                   rangeImages, 
+                   images, 
+                   velodata, 
+                   v_fov, h_fov, v_res, h_res, T_gt, K_gt, 
+                   opt = opt, 
+                   savePath = savePath_LoFTR, 
+                   device = device, 
+                   smoothing = smoothing, 
+                   upsampleFactor = upsampleFactor, 
+                   checkPC = checkPC)
