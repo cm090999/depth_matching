@@ -1,5 +1,15 @@
 # depth_matching
 
+## Get the dataset
+Run the bash script to download a subset of the KITTI dataset:
+
+```
+cd Dataset
+```
+```
+./raw_data_downloader.sh
+```
+
 ## Setup
 
 Clone the repository with the submodule:
@@ -25,14 +35,6 @@ Activate the virtual environment:
 source .venv/bin/activate
 ```
 
-Download the dataset:
-
-```
-cd Dataset
-
-./raw_data_downloader.sh
-```
-
 Install dependencies:
 
 ```
@@ -43,4 +45,21 @@ To install pytorch:
 
 ```
 pip3 install torch torchvision torchaudio
+```
+
+## Conda Setup
+Clone the LoFTR repository:
+``` 
+git clone https://github.com/cm090999/LoFTR.git
+```
+
+Initialize the conda environment:
+
+``` 
+conda env create -f setup/environment.yaml
+```
+
+Activate the created environment:
+``` 
+conda activate depth_matching
 ```

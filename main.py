@@ -134,7 +134,8 @@ if __name__ == "__main__":
 
     # LoFTR Settings
     resize = -1 #help='Resize the input image before running inference. If two numbers, resize to the exact dimensions, if one number, resize the max dimension, if -1, do not resize
-    weight = '../LoFTR/weights/indoor_ds.ckpt'
+    weight = 'LoFTR/weights/outdoor_ds.ckpt'
+    
 
     opt = {'resize': resize,
            'weight': weight}

@@ -9,4 +9,5 @@ __pycache__/
 **/__pycache__/
 KITTI_RES
 RES_SuperGlue
+RES_LoFTR
 

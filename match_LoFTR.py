@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 import matplotlib.cm as cm
 import torch
+from copy import deepcopy
+
 
 from ST_depth_correspondence import helper_func
 
@@ -17,8 +19,10 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
     nframes = len(images0)
 
     # Initialize LoFTR
-    matcher = LoFTR(config=default_cfg)
-    matcher.load_state_dict(torch.load(opt.weight)['state_dict'])
+    _default_cfg = deepcopy(default_cfg)
+    # _default_cfg['coarse']['temp_bug_fix'] = True  # set to False when using the old ckpt
+    matcher = LoFTR(config=_default_cfg)
+    matcher.load_state_dict(torch.load(opt['weight'])['state_dict'])
     matching = matcher.eval().to(device=device)
 
     ## Apply SuperGlue + Pose Estimation for first image with n_time next images
@@ -83,7 +87,10 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
         inp1 = frame2tensor(images1[i], device)
 
         # Perform the matching.
-        pred = matching({'image0': inp0, 'image1': inp1})
+        with torch.no_grad():
+            matching({'image0': inp0,
+                      'image1': inp1})
+            
         pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
         kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
         matches, conf = pred['matches0'], pred['matching_scores0']
