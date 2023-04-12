@@ -119,7 +119,7 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
     horiPix = int((np.absolute(h_fov[1] - h_fov[0]) / h_res))
 
     # Initialize Range image
-    rangeImage = np.zeros((vertPix,horiPix),dtype=float)
+    rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
 
     # Get image coordinates of all points
     # x_img_fl = np.round(horizontalAnglesShifted / horizMax * (horiPix - 1))

@@ -63,3 +63,11 @@ Activate the created environment:
 ``` 
 conda activate depth_matching
 ```
+
+Download the weights for the LoFTR model from https://drive.google.com/drive/folders/1DOcOPZb3-5cWxLqn256AhwUVjBPifhuf and remove the top level folder to only have a ```weights``` folder in the LoFTR project directory. The ```.chpt``` files should be in the following location:
+
+```
+depth_matching/LoFTR/weights/example.ckpt
+```
+
+

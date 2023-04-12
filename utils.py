@@ -64,11 +64,18 @@ def evaluateMonodepth2(imagePT, encoder, depth_decoder, original_height, origina
     # Save images
     depth_image = disp_resized.squeeze().cpu().numpy()
 
+    # Invert and normalize
+    depth_image = ((depth_image - np.min(depth_image)) / np.max(depth_image) * (-1) + 1) * 255
+
+    depth_image = cv2.equalizeHist(depth_image.astype(np.uint8))
+
+    depth_image = (depth_image.astype(np.float32) / 255)
+
     return depth_image
 
 def upsampleRangeImage(rangeImage,factor):
     heigth, width = np.shape(rangeImage)
-    resized = cv2.resize(rangeImage,(factor*width,factor*heigth), interpolation=cv2.INTER_LINEAR)
+    resized = cv2.resize(rangeImage,(factor*width,factor*heigth), interpolation=cv2.INTER_NEAREST) # interpolation=cv2.INTER_LINEAR
     return resized
 
 

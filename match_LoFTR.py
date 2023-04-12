@@ -2,6 +2,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 import torch
 from copy import deepcopy
 
@@ -20,7 +21,7 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
 
     # Initialize LoFTR
     _default_cfg = deepcopy(default_cfg)
-    # _default_cfg['coarse']['temp_bug_fix'] = True  # set to False when using the old ckpt
+    # _default_cfg['coarse']['temp_bug_fix'] = True # set to False when using the old ckpt
     matcher = LoFTR(config=_default_cfg)
     matcher.load_state_dict(torch.load(opt['weight'])['state_dict'])
     matching = matcher.eval().to(device=device)
@@ -52,25 +53,28 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
     output_dir_proj.mkdir(exist_ok=True, parents=True)
 
     for i in range(nframes):
+        plt.close('all') 
         print('Work on Frame #' + str(i))
 
         # Keep unmodified range image for PnP
         rangeImage_tmp = images1[i]
+        image0 = images0[i]
+        image1 = images1[i]
 
         # Normalize Images and verify to be same type
-        images0[i] = (((images0[i] - np.min(images0[i])) / np.max(images0[i])) * 255 * (-1) + 1).astype(np.uint8)
-        images1[i] = (((images1[i] - np.min(images1[i])) / np.max(images1[i])) * 255).astype(np.uint8)
+        image0 = (((image0 - np.min(image0)) / np.max(image0)) * 255).astype(np.float32)
+        image1 = (((image1 - np.min(image1)) / np.max(image1)) * 255).astype(np.float32)
 
         # Resize range image
-        images1[i] = upsampleRangeImage(images1[i],upsampleFactor)
+        image1 = upsampleRangeImage(image1,upsampleFactor)
 
         # Apply Gaussian Blur
         if smoothing == True:
-            images1[i] = cv2.GaussianBlur(images1[i],(5,5),0)
+            image1 = cv2.GaussianBlur(image1,(5,5),0)
 
-        # Histogram equalization
-        images0[i] = cv2.equalizeHist(images0[i].astype(np.uint8))
-        images1[i] = cv2.equalizeHist(images1[i].astype(np.uint8))
+        # # Histogram equalization
+        # image0 = cv2.equalizeHist(image0.astype(np.float32))
+        # image1 = cv2.equalizeHist(image1.astype(np.float32))
 
         fileName = str(i).zfill(3) + '.png'
         savePathMatches = output_dir_matches / fileName
@@ -79,27 +83,46 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
         savePathproj = output_dir_proj / fileName
 
         # Save Range Images and monodepth2 images
-        cv2.imwrite(str(savePathmd2),images0[i])
-        cv2.imwrite(str(savePathRange),images1[i])
+        cv2.imwrite(str(savePathmd2),image0)
+        cv2.imwrite(str(savePathRange),image1)
+
+        # Resize Images
+        orig_shape0 = np.shape(image0)
+        orig_shape1 = np.shape(image1)
+        # # resizeImg0 = (376, 1248)
+        # # resizeImg1 = (64,  344)
+        resizeImg0 = ( ((orig_shape0[0] // 8) + 1) * 8, ((orig_shape0[1] // 8) + 1) * 8 )
+        resizeImg1 = ( ((orig_shape1[0] // 8) + 1) * 8, ((orig_shape1[1] // 8) + 1) * 8 )
+
+        
+
+        image0bckgrnd = np.zeros(resizeImg0, dtype=np.float32)
+        image1bckgrnd = np.zeros(resizeImg1, dtype=np.float32)
+
+        img0_resize = image0bckgrnd
+        img1_resize = image1bckgrnd
+
+        img0_resize[:orig_shape0[0], :orig_shape0[1]] = image0
+        img1_resize[:orig_shape1[0], :orig_shape1[1]] = image1
+
+        image0 = cv2.resize(image0, resizeImg0)
+        image1 = cv2.resize(image1, resizeImg1)
 
         # Tranform and normalize images
-        inp0 = frame2tensor(images0[i], device)
-        inp1 = frame2tensor(images1[i], device)
+        inp0 = frame2tensor(img0_resize, device)
+        inp1 = frame2tensor(img1_resize, device)
 
         # Perform the matching.
+        pred = {'image0': inp0, 'image1': inp1}
         with torch.no_grad():
-            matching({'image0': inp0,
-                      'image1': inp1})
+            matching(pred)
             
-        pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
-        kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
-        matches, conf = pred['matches0'], pred['matching_scores0']
-
-        # Keep the matching keypoints.
-        valid = matches > -1
-        mkpts0 = kpts0[valid]
-        mkpts1 = kpts1[matches[valid]]
-        mconf = conf[valid]
+        # dict_keys(['image0', 'image1', 'bs', 'hw0_i', 'hw1_i', 'hw0_c', 'hw1_c', 'hw0_f', 'hw1_f', 'conf_matrix', 'b_ids', 'i_ids', 'j_ids', 'gt_mask', 'm_bids', 'mkpts0_c', 'mkpts1_c', 'mconf', 'W', 'expec_f', 'mkpts0_f', 'mkpts1_f'])
+        mkpts0 = pred['mkpts0_f'].cpu().detach().numpy()
+        mkpts1 = pred['mkpts1_f'].cpu().detach().numpy()
+        kpts0 = pred['mkpts0_c'].cpu().detach().numpy()
+        kpts1 = pred['mkpts1_c'].cpu().detach().numpy()
+        mconf = pred['mconf'].cpu().detach().numpy()
 
         # Visualize the matches.
         color = cm.jet(mconf)
@@ -109,13 +132,13 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
             'Matches: {}'.format(len(mkpts0)),
         ]
 
-        # Make Plot
-        # Display extra parameter info.
-        k_thresh = matching.superpoint.config['keypoint_threshold']
-        m_thresh = matching.superglue.config['match_threshold']
+        # # Make Plot
+        # # Display extra parameter info.
+        # k_thresh = matching.superpoint.config['keypoint_threshold']
+        # m_thresh = matching.superglue.config['match_threshold']
 
         make_matching_plot(
-            images0[i], images1[i], kpts0, kpts1, mkpts0, mkpts1, color,
+            img0_resize, img1_resize, kpts0, kpts1, mkpts0, mkpts1, color,
             text, savePathMatches, show_keypoints=True,
             fast_viz=True, opencv_display=True, opencv_title='Matches')
         
@@ -123,13 +146,13 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
         nmatches, _ = np.shape(mkpts0)
 
         if checkPC == True:
-                keypts = get3dpointFromRangeimage(rangeImage_tmp,kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
+                keypts = get3dpointFromRangeimage(images1[i],kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
                 plot3dPoints(velodata[i],keypts)
 
         if nmatches >= 6:
 
         # Get 3d Coordinates from matches
-            matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+            matches_3d = get3dpointFromRangeimage(images1[i],mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
             matches_2d = mkpts0
 
             if checkPC == True:

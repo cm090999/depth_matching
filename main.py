@@ -2,6 +2,7 @@ import pykitti as pk
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+import cv2
 
 from match_SuperGlue import matchSuperglue
 from match_LoFTR import matchLoFTR
@@ -21,8 +22,8 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 5
-    upsampleFactor = 1
+    nframes = 20
+    upsampleFactor = 6
     smoothing = False
     checkPC = False
 
@@ -33,9 +34,17 @@ if __name__ == "__main__":
     K_gt = kitti_raw.calib.K_cam3
     T_gt = kitti_raw.calib.T_cam3_velo
 
+    # Prepare
+    h,w, _= np.shape(kitti_raw.get_cam3(0))
+    fx, fy = K_gt[0,0], K_gt[1,1]
+
+    # Go
+    fov_x = np.rad2deg(2 * np.arctan2(w, 2 * fx))
+    fov_y = np.rad2deg(2 * np.arctan2(h, 2 * fy))
+
     ## Convert the LiDAR point clouds to range images ##
     # Set visibility parameters 
-    v_fov, h_fov = (2, -24.8), (-180,180) ### START AT TOP LEFT OF IMAGE
+    v_fov, h_fov = (2, -24.8), (-fov_x/2,fov_x/2) ### START AT TOP LEFT OF IMAGE
     v_res= 0.42 # 0.42
     h_res= 0.35 # 0.35
 
@@ -43,11 +52,13 @@ if __name__ == "__main__":
     images = []
     velodata = []
     rangeImages = []
+    grayscaleImages = []
     for i in range(nframes):
         images.append(kitti_raw.get_cam3(i))
+        grayscaleImages.append(images[i].convert('L'))
         velodata.append(kitti_raw.get_velo(i)[:,0:3])
         # rangeImages.append(velo_points_2_pano(velodata[i], v_res, h_res, v_fov, h_fov, depth=True).astype(float))
-        rangeImages.append(velo_to_range(velodata[i], v_res=v_res, h_res=h_res, v_fov=v_fov, h_fov=h_fov,recursive=True, scaling = 0.99).astype(float))
+        rangeImages.append(velo_to_range(velodata[i], v_res=v_res, h_res=h_res, v_fov=v_fov, h_fov=h_fov,recursive=True, scaling = 0.99))
 
     if debug == True:
         # display result image
@@ -143,13 +154,13 @@ if __name__ == "__main__":
     savePath_LoFTR = 'RES_LoFTR'
 
     matchLoFTR(monodepthImages, 
-                   rangeImages, 
-                   images, 
-                   velodata, 
-                   v_fov, h_fov, v_res, h_res, T_gt, K_gt, 
-                   opt = opt, 
-                   savePath = savePath_LoFTR, 
-                   device = device, 
-                   smoothing = smoothing, 
-                   upsampleFactor = upsampleFactor, 
-                   checkPC = checkPC)
+                rangeImages, 
+                images, 
+                velodata, 
+                v_fov, h_fov, v_res, h_res, T_gt, K_gt, 
+                opt = opt, 
+                savePath = savePath_LoFTR, 
+                device = device, 
+                smoothing = smoothing, 
+                upsampleFactor = upsampleFactor, 
+                checkPC = checkPC)

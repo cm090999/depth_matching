@@ -2,6 +2,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 
 from ST_depth_correspondence import helper_func
 
@@ -43,25 +44,28 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
     output_dir_proj.mkdir(exist_ok=True, parents=True)
 
     for i in range(nframes):
+        plt.close('all') 
         print('Work on Frame #' + str(i))
 
         # Keep unmodified range image for PnP
-        rangeImage_tmp = images1[i]
+        image0 = images0[i]
+        image1 = images1[i]
+
 
         # Normalize Images and verify to be same type
-        images0[i] = (((images0[i] - np.min(images0[i])) / np.max(images0[i])) * 255 * (-1) + 1).astype(np.uint8)
-        images1[i] = (((images1[i] - np.min(images1[i])) / np.max(images1[i])) * 255).astype(np.uint8)
+        image0 = (((image0 - np.min(image0)) / np.max(image0)) * 255).astype(np.float32)
+        image1 = (((image1 - np.min(image1)) / np.max(image1)) * 255).astype(np.float32)
 
         # Resize range image
-        images1[i] = upsampleRangeImage(images1[i],upsampleFactor)
+        image1 = upsampleRangeImage(image1,upsampleFactor)
 
         # Apply Gaussian Blur
         if smoothing == True:
-            images1[i] = cv2.GaussianBlur(images1[i],(5,5),0)
+            image1 = cv2.GaussianBlur(image1,(5,5),0)
 
-        # Histogram equalization
-        images0[i] = cv2.equalizeHist(images0[i].astype(np.uint8))
-        images1[i] = cv2.equalizeHist(images1[i].astype(np.uint8))
+        # # Histogram equalization
+        # image0 = cv2.equalizeHist(image0.astype(np.float32))
+        # image1 = cv2.equalizeHist(image1.astype(np.float32))
 
         fileName = str(i).zfill(3) + '.png'
         savePathMatches = output_dir_matches / fileName
@@ -70,12 +74,12 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
         savePathproj = output_dir_proj / fileName
 
         # Save Range Images and monodepth2 images
-        cv2.imwrite(str(savePathmd2),images0[i])
-        cv2.imwrite(str(savePathRange),images1[i])
+        cv2.imwrite(str(savePathmd2),image0)
+        cv2.imwrite(str(savePathRange),image1)
 
         # Tranform and normalize images
-        inp0 = frame2tensor(images0[i], device)
-        inp1 = frame2tensor(images1[i], device)
+        inp0 = frame2tensor(image0, device)
+        inp1 = frame2tensor(image1, device)
 
         # Perform the matching.
         pred = matching({'image0': inp0, 'image1': inp1})
@@ -103,7 +107,7 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
         m_thresh = matching.superglue.config['match_threshold']
 
         make_matching_plot(
-            images0[i], images1[i], kpts0, kpts1, mkpts0, mkpts1, color,
+            image0, image1, kpts0, kpts1, mkpts0, mkpts1, color,
             text, savePathMatches, show_keypoints=True,
             fast_viz=True, opencv_display=True, opencv_title='Matches')
         
@@ -111,13 +115,13 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
         nmatches, _ = np.shape(mkpts0)
 
         if checkPC == True:
-                keypts = get3dpointFromRangeimage(rangeImage_tmp,kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
+                keypts = get3dpointFromRangeimage(images1[i],kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
                 plot3dPoints(velodata[i],keypts)
 
         if nmatches >= 6:
 
         # Get 3d Coordinates from matches
-            matches_3d = get3dpointFromRangeimage(rangeImage_tmp,mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+            matches_3d = get3dpointFromRangeimage(images1[i],mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
             matches_2d = mkpts0
 
             if checkPC == True:
