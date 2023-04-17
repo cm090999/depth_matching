@@ -187,15 +187,15 @@ def rangeImagefromImage(image, K_int, v_res: float, h_res: float):
 
     return rangeImage
 
-import cv2
-testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
-K = np.array(  [[721.5377,   0.    , 609.5593],
-                [  0.    , 721.5377, 172.854 ],
-                [  0.    ,   0.    ,   1.    ]] )
-v_res= 0.42
-h_res= 0.35
+# import cv2
+# testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
+# K = np.array(  [[721.5377,   0.    , 609.5593],
+#                 [  0.    , 721.5377, 172.854 ],
+#                 [  0.    ,   0.    ,   1.    ]] )
+# v_res= 0.42
+# h_res= 0.35
 
-test = rangeImagefromImage(testimg, K, v_res, h_res)
-cv2.imsave('test.png',test)
-print("end")
+# test = rangeImagefromImage(testimg, K, v_res, h_res)
+# cv2.imsave('test.png',test)
+# print("end")
 

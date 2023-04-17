@@ -173,8 +173,8 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
     r_gt = r_gt.ravel()
     t_gt = t_gt.ravel()
     for T in T_rel:
-        if type(T) == None:
-            transformationError.appen(None)
+        if T is None:
+            transformationError.append(None)
             continue
         else:
             t_loc, r_loc = helper_func.matrix_to_rtvec(T)
