@@ -13,7 +13,7 @@ from LoFTR.src.loftr import LoFTR, default_cfg
 
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
 
-from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints
+from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints, transformationVecLoss
 
 def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, opt, savePath, device = 'cpu', smoothing = False, upsampleFactor = 1, checkPC = False):
 
@@ -89,12 +89,9 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
         # Resize Images
         orig_shape0 = np.shape(image0)
         orig_shape1 = np.shape(image1)
-        # # resizeImg0 = (376, 1248)
-        # # resizeImg1 = (64,  344)
+        
         resizeImg0 = ( ((orig_shape0[0] // 8) + 1) * 8, ((orig_shape0[1] // 8) + 1) * 8 )
         resizeImg1 = ( ((orig_shape1[0] // 8) + 1) * 8, ((orig_shape1[1] // 8) + 1) * 8 )
-
-        
 
         image0bckgrnd = np.zeros(resizeImg0, dtype=np.float32)
         image1bckgrnd = np.zeros(resizeImg1, dtype=np.float32)
@@ -131,11 +128,6 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
             'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
             'Matches: {}'.format(len(mkpts0)),
         ]
-
-        # # Make Plot
-        # # Display extra parameter info.
-        # k_thresh = matching.superpoint.config['keypoint_threshold']
-        # m_thresh = matching.superglue.config['match_threshold']
 
         make_matching_plot(
             img0_resize, img1_resize, kpts0, kpts1, mkpts0, mkpts1, color,
@@ -176,9 +168,24 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
 
         numberMatches.append(nmatches)
 
+    transformationError = []
+    t_gt, r_gt = helper_func.matrix_to_rtvec(T_gt)
+    r_gt = r_gt.ravel()
+    t_gt = t_gt.ravel()
+    for T in T_rel:
+        if type(T) == None:
+            transformationError.appen(None)
+            continue
+        else:
+            t_loc, r_loc = helper_func.matrix_to_rtvec(T)
+            trans_loss, rot_loss = transformationVecLoss(t_gt=t_gt,r_gt=r_gt, t=t_loc, r=r_loc)
+            transformationError.append([trans_loss,rot_loss])
+
+
     # Define dict to extract results
     resDict = {'T_rel': T_rel,
-               'Number of Matches': numberMatches}
+               'Number of Matches': numberMatches,
+               'Tranformation Error': transformationError}
     
     # Define location to save results
     fout = output_dir_tf / 'Pose.txt'

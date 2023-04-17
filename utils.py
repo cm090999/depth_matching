@@ -179,13 +179,16 @@ def transformationVecLoss(t_gt, r_gt, t, r, pnorm = 2):
     cost_tra = 0
     cost_rot = 0
     
-    for i in range(3):
-        cost_tra += (t_gt**pnorm - t**pnorm)**(1/pnorm)
-    
-    for i in range(4):
-        cost_rot += (r_gt**pnorm - r**pnorm)**(1/pnorm)
+    t = t.ravel()
+    r = r.ravel()
 
-    return cost_tra, cost_tra
+    for i in range(3):
+        cost_tra += (np.abs(t_gt[i]**pnorm - t[i]**pnorm))**(1/pnorm)
+    
+    for i in range(3):
+        cost_rot += (np.abs(r_gt[i]**pnorm - r[i]**pnorm))**(1/pnorm)
+
+    return cost_tra, cost_rot
 
 
 def pointCloudLoss(pc, T_gt, T):

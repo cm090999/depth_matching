@@ -9,7 +9,7 @@ from ST_depth_correspondence import helper_func
 from SuperGluePretrainedNetwork.models.matching import Matching
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
 
-from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints
+from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints, transformationVecLoss
 
 def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, config, savePath, device = 'cpu', smoothing = False, upsampleFactor = 1, checkPC = False):
 
@@ -144,6 +144,19 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
             T_rel.append(None)
 
         numberMatches.append(nmatches)
+
+    transformationError = []
+    t_gt, r_gt = helper_func.matrix_to_rtvec(T_gt)
+    r_gt = r_gt.ravel()
+    t_gt = t_gt.ravel()
+    for T in T_rel:
+        if type(T) == None:
+            transformationError.appen(None)
+            continue
+        else:
+            t_loc, r_loc = helper_func.matrix_to_rtvec(T)
+            trans_loss, rot_loss = transformationVecLoss(t_gt=t_gt,r_gt=r_gt, t=t_loc, r=r_loc)
+            transformationError.append([trans_loss,rot_loss])
 
     # Define dict to extract results
     resDict = {'T_rel': T_rel,
