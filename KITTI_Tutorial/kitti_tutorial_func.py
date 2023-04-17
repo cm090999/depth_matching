@@ -103,8 +103,6 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
     dist = dist[combined_condition]
 
     # Shift angles to all be positive
-    # verticalAnglesShifted = verticalAngles + np.abs(np.min(verticalAngles))
-    # horizontalAnglesShifted = horizontalAngles + np.abs(np.min(horizontalAngles))
     verticalAnglesShifted = (verticalAngles - v_fov[0]) * -1
     horizontalAnglesShifted = horizontalAngles - h_fov[0]
 
@@ -113,8 +111,6 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
     horizMax = np.max(horizontalAnglesShifted)
 
     # Get Number of pixels in range image
-    # vertPix = (vertMax / v_res).astype(int)
-    # horiPix = (horizMax / h_res).astype(int)
     vertPix = int((np.absolute(v_fov[1] - v_fov[0]) / v_res))
     horiPix = int((np.absolute(h_fov[1] - h_fov[0]) / h_res))
 
@@ -122,8 +118,6 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
     rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
 
     # Get image coordinates of all points
-    # x_img_fl = np.round(horizontalAnglesShifted / horizMax * (horiPix - 1))
-    # y_img_fl = np.round(verticalAnglesShifted / vertMax* (vertPix - 1))
     x_img_fl = np.round(horizontalAnglesShifted / np.absolute(h_fov[1] - h_fov[0]) * (horiPix - 1))
     y_img_fl = np.round(verticalAnglesShifted / np.absolute(v_fov[1] - v_fov[0]) * (vertPix - 1))
     x_img = x_img_fl.astype(int)
@@ -164,3 +158,24 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
             rangeImage[red_y,red_x] = red_depth
 
     return rangeImage
+
+def rangeImagefromMonodepth(monodepthImage, K_int, v_res: float, h_res: float):
+
+    # Get fov of monodepth image
+    h, w = np.shape(monodepthImage)
+    fov_x_delta = 2 * np.arctan(w / (2 * K_int[0,0]))
+    fov_y_delta = 2 * np.arctan(h / (2 * K_int[1,1]))
+
+    fov_x = ( -fov_x_delta / 2, fov_x_delta / 2)
+    fov_y = ( -fov_y_delta / 2, fov_y_delta / 2)
+
+    # Get Number of pixels in range image
+    vertPix = int((np.absolute(fov_y[1] - fov_y[0]) / v_res))
+    horiPix = int((np.absolute(fov_x[1] - fov_x[0]) / h_res))
+
+    # Initialize Range image
+    rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
+
+
+
+    return
