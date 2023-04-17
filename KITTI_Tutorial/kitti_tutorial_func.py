@@ -159,23 +159,43 @@ def velo_to_range(points, v_res: float, h_res: float, v_fov, h_fov, recursive = 
 
     return rangeImage
 
-def rangeImagefromMonodepth(monodepthImage, K_int, v_res: float, h_res: float):
+def rangeImagefromImage(image, K_int, v_res: float, h_res: float):
+
+    if np.ndim(image) == 2:
+        image = np.expand_dims(image, axis = -1)
 
     # Get fov of monodepth image
-    h, w = np.shape(monodepthImage)
-    fov_x_delta = 2 * np.arctan(w / (2 * K_int[0,0]))
-    fov_y_delta = 2 * np.arctan(h / (2 * K_int[1,1]))
+    h, w, _ = np.shape(image)
+    # fov_x_delta = 2 * np.arctan(w / (2 * K_int[0,0]))
+    # fov_y_delta = 2 * np.arctan(h / (2 * K_int[1,1]))
 
-    fov_x = ( -fov_x_delta / 2, fov_x_delta / 2)
-    fov_y = ( -fov_y_delta / 2, fov_y_delta / 2)
+    # # Consider center offset
+    # delta_c_x = K_int[0,2] - w.astype(float) / 2
+    # delta_c_y = K_int[1,2] - h.astype(float) / 2
+    
+    fov_x = ( -np.arctan((w - K_int[0,2]) / (2 * K_int[0,0])), np.arctan((w + K_int[0,2]) / (2 * K_int[0,0])))
+    fov_y = ( -np.arctan((h - K_int[1,2]) / (2 * K_int[1,1])), np.arctan((h + K_int[1,2]) / (2 * K_int[1,1])))
 
     # Get Number of pixels in range image
-    vertPix = int((np.absolute(fov_y[1] - fov_y[0]) / v_res))
-    horiPix = int((np.absolute(fov_x[1] - fov_x[0]) / h_res))
+    vertPix = int((np.absolute(fov_y[1] - fov_y[0]) / v_res) * 180 / np.pi)
+    horiPix = int((np.absolute(fov_x[1] - fov_x[0]) / h_res) * 180 / np.pi)
 
     # Initialize Range image
     rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
 
 
 
-    return
+    return rangeImage
+
+import cv2
+testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
+K = np.array(  [[721.5377,   0.    , 609.5593],
+                [  0.    , 721.5377, 172.854 ],
+                [  0.    ,   0.    ,   1.    ]] )
+v_res= 0.42
+h_res= 0.35
+
+test = rangeImagefromImage(testimg, K, v_res, h_res)
+cv2.imsave('test.png',test)
+print("end")
+
