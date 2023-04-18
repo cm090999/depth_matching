@@ -7,7 +7,7 @@ import cv2
 from match_SuperGlue import matchSuperglue
 from match_LoFTR import matchLoFTR
 
-from KITTI_Tutorial.kitti_tutorial_func import velo_to_range
+from KITTI_Tutorial.kitti_tutorial_func import velo_to_range, rangeImagefromImage
 
 from utils import loadmonodepthModel, convertImageToMonodepth2, evaluateMonodepth2
 
@@ -22,11 +22,11 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 30
+    nframes = 100
     upsampleFactor = 6
     smoothing = False
     checkPC = False
-    aggregateMatches = 20
+    aggregateMatches = 10
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
@@ -54,6 +54,7 @@ if __name__ == "__main__":
     velodata = []
     rangeImages = []
     grayscaleImages = []
+    range_monodepthImages = []
     for i in range(nframes):
         images.append(kitti_raw.get_cam3(i))
         grayscaleImages.append(images[i].convert('L'))
@@ -83,6 +84,7 @@ if __name__ == "__main__":
 
         # Run monodepth2
         monodepthImages.append(evaluateMonodepth2(image_pytorch,encoder,depth_decoder,original_height,original_width))
+        range_monodepthImages.append(rangeImagefromImage(monodepthImages[-1],K_gt,h_res,v_res))
 
     if debug == True:
         # Plot colormapped depth image
