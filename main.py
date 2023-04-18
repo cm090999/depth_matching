@@ -22,7 +22,7 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 100
+    nframes = 30
     upsampleFactor = 6
     smoothing = False
     checkPC = False
@@ -35,11 +35,11 @@ if __name__ == "__main__":
     K_gt = kitti_raw.calib.K_cam3
     T_gt = kitti_raw.calib.T_cam3_velo
 
-    # Prepare
+    # Get data from calibration matrix to calculate FOV
     h,w, _= np.shape(kitti_raw.get_cam3(0))
     fx, fy = K_gt[0,0], K_gt[1,1]
 
-    # Go
+    # Get FOV of camera
     fov_x = np.rad2deg(2 * np.arctan2(w, 2 * fx))
     fov_y = np.rad2deg(2 * np.arctan2(h, 2 * fy))
 
@@ -140,7 +140,8 @@ if __name__ == "__main__":
                    device = device, 
                    smoothing = smoothing, 
                    upsampleFactor = upsampleFactor, 
-                   checkPC = checkPC)
+                   checkPC = checkPC,
+                   aggrMatches=aggregateMatches)
 
 #######################################
 

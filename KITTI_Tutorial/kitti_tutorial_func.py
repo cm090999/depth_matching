@@ -166,36 +166,125 @@ def rangeImagefromImage(image, K_int, v_res: float, h_res: float):
 
     # Get fov of monodepth image
     h, w, _ = np.shape(image)
+    cx = K_int[0,2]
+    cy = K_int[1,2]
+
     # fov_x_delta = 2 * np.arctan(w / (2 * K_int[0,0]))
     # fov_y_delta = 2 * np.arctan(h / (2 * K_int[1,1]))
 
     # # Consider center offset
-    # delta_c_x = K_int[0,2] - w.astype(float) / 2
-    # delta_c_y = K_int[1,2] - h.astype(float) / 2
+    # delta_c_x = cx - w.astype(float) / 2
+    # delta_c_y = cy - h.astype(float) / 2
     
-    fov_x = ( -np.arctan((w - K_int[0,2]) / (2 * K_int[0,0])), np.arctan((w + K_int[0,2]) / (2 * K_int[0,0])))
-    fov_y = ( -np.arctan((h - K_int[1,2]) / (2 * K_int[1,1])), np.arctan((h + K_int[1,2]) / (2 * K_int[1,1])))
+    fov_x = ( -np.arctan((cx) / (K_int[0,0])), np.arctan((w - cx) / (K_int[0,0])))
+    fov_y = ( -np.arctan((cy) / (K_int[1,1])), np.arctan((h - cy) / (K_int[1,1])))
+
+    # Get range of angles 
+    hor_angle_range = fov_x[1] - fov_x[0]
+    ver_angle_range = fov_y[1] - fov_y[0]
 
     # Get Number of pixels in range image
-    vertPix = int((np.absolute(fov_y[1] - fov_y[0]) / v_res) * 180 / np.pi)
-    horiPix = int((np.absolute(fov_x[1] - fov_x[0]) / h_res) * 180 / np.pi)
+    vertPix = int((np.absolute(ver_angle_range) / v_res) * 180 / np.pi)
+    horiPix = int((np.absolute(hor_angle_range) / h_res) * 180 / np.pi)
 
     # Initialize Range image
     rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
 
+    # Create two lookup vectors for the angles of the pixels in the range image
+    hor_angle_lookup = np.linspace(fov_x[0],fov_x[1],horiPix)
+    ver_angle_lookup = np.linspace(fov_y[0],fov_y[1],vertPix)
 
+    # Get angles of all pixel locations in image
+    hor_angle_img = np.zeros((w,1))
+    ver_angle_img = np.zeros((h,1))
+
+    hor_px = np.linspace(0,w-1,w) - cx
+    ver_px = np.linspace(0,h-1,h) - cy
+
+    hor_angle_img[:,0] = np.arctan(hor_px / (K_int[0,0]))
+    ver_angle_img[:,0] = np.arctan(ver_px / (K_int[1,1]))
+
+    horLocs = np.abs(np.subtract.outer(hor_angle_lookup, hor_angle_img)).argmin(0)
+    verLocs = np.abs(np.subtract.outer(ver_angle_lookup, ver_angle_img)).argmin(0)
+
+
+    ###
+    # for i in range(vertPix):
+    #     for j in range(horiPix):
+    #         rangeImage[i,j] = np.linalg.norm(image[verLocs[i],horLocs[j]])
+    rangeImage = np.linalg.norm(image[verLocs[:, None], horLocs][:,:,0,:], axis=2) / 3
+
+    ###
 
     return rangeImage
 
-# import cv2
-# testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
-# K = np.array(  [[721.5377,   0.    , 609.5593],
-#                 [  0.    , 721.5377, 172.854 ],
-#                 [  0.    ,   0.    ,   1.    ]] )
-# v_res= 0.42
-# h_res= 0.35
+def rangeImagefromImage2(image: np.ndarray, K: np.ndarray, h_res: float, v_res: float):
 
-# test = rangeImagefromImage(testimg, K, v_res, h_res)
-# cv2.imsave('test.png',test)
-# print("end")
+    if np.ndim(image) == 2:
+        image = np.expand_dims(image, axis = -1)
+
+    # Get fov of image
+    h, w, _ = np.shape(image)
+    cx = K[0,2]
+    cy = K[1,2]
+    
+    fov_x = ( -np.arctan((cx) / (K[0,0])), np.arctan((w - cx) / (K[0,0])) )
+    fov_y = ( -np.arctan((cy) / (K[1,1])), np.arctan((h - cy) / (K[1,1])) )
+
+    # Get range of angles 
+    hor_angle_range = fov_x[1] - fov_x[0]
+    ver_angle_range = fov_y[1] - fov_y[0]
+
+    # Get Number of pixels in range image
+    vertPix = int((np.absolute(ver_angle_range) / v_res) * 180 / np.pi)
+    horiPix = int((np.absolute(hor_angle_range) / h_res) * 180 / np.pi)
+
+    # Initialize Range image
+    rangeImage = np.zeros((vertPix,horiPix),dtype=np.float32)
+
+    # Range image to store corresponding original pixel locations
+    rangeImage_corr = np.zeros((vertPix,horiPix,2), dtype=np.float32 )
+
+    # Find correspondences of each pixel in rangeImage and the original image "image"
+    ###
+    # Create Lookup array for pixel <--> angle in rangeImage
+    hor_lookup_range = np.linspace(fov_x[0], fov_x[1], horiPix)
+    ver_lookup_range = np.linspace(fov_y[0], fov_y[1], vertPix)
+
+    # Create 3d points with dummy distance one
+    x_coords = np.tan(hor_lookup_range)
+    y_coords = np.tan(ver_lookup_range)
+    n_mesh, m_mesh = np.meshgrid(x_coords, y_coords)
+    all_coords = np.column_stack([n_mesh.ravel(), m_mesh.ravel()])
+    coords_3d = np.c_[all_coords, np.ones_like(all_coords)[:,0]]
+    
+    # Projected Coordinates (== image coordinates)
+    coords_proj = np.matmul(K  ,np.transpose(coords_3d))[0:2,:]
+    x_rangeCorr = np.reshape(coords_proj[0,:], np.shape(rangeImage))
+    y_rangeCorr = np.reshape(coords_proj[1,:], np.shape(rangeImage))
+    
+    rangeImage_corr[:,:,0] = x_rangeCorr
+    rangeImage_corr[:,:,1] = y_rangeCorr
+    ###
+
+    # Fill the values from image into rangeImage
+    ###
+    rangeImage = image[(np.floor(rangeImage_corr[:,:,1])).astype(int), (np.floor(rangeImage_corr[:,:,0])).astype(int)]
+    ###
+
+    return rangeImage
+
+import cv2
+testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
+testimg[50:100,120:150] = 0
+K = np.array(  [[721.5377,   0.    , 609.5593],
+                [  0.    , 721.5377, 172.854 ],
+                [  0.    ,   0.    ,   1.    ]] )
+v_res= 0.42
+h_res= 0.35
+
+test = rangeImagefromImage2(testimg, K, v_res, h_res)
+cv2.imwrite('test.png',test)
+cv2.imwrite('orig.png', testimg)
+print("end")
 

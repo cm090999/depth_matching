@@ -193,7 +193,8 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
 
     # Define dict to extract results
     resDict = {'T_rel': T_rel,
-               'Number of Matches': numberMatches}
+               'Number of Matches': numberMatches,
+               'Tranformation Error': transformationError}
     avgDict = {'Average Translational Error: ': avgTransLoss,
                'Average Rotational Error: ': avgRotLoss}
     
