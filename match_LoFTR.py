@@ -15,7 +15,11 @@ from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_
 
 from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints, transformationVecLoss
 
-def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, opt, savePath, device = 'cpu', smoothing = False, upsampleFactor = 1, checkPC = False):
+def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, opt, savePath, device = 'cpu', smoothing = False, upsampleFactor = 1, checkPC = False, aggrMatches = 1):
+
+    # Initialize empty matching kpts buffers
+    buffer_matches2d = []
+    buffer_matches3d = []
 
     nframes = len(images0)
 
@@ -141,17 +145,35 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
                 keypts = get3dpointFromRangeimage(images1[i],kpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=-1)
                 plot3dPoints(velodata[i],keypts)
 
-        if nmatches >= 6:
-
         # Get 3d Coordinates from matches
-            matches_3d = get3dpointFromRangeimage(images1[i],mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
-            matches_2d = mkpts0
+        matches_3d = get3dpointFromRangeimage(images1[i],mkpts1,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+        matches_2d = mkpts0
+
+        # Add keypoints to buffer
+        if len(buffer_matches2d) < aggrMatches:
+            buffer_matches2d.append(matches_2d)
+            buffer_matches3d.append(matches_3d)
+        else:
+            buffer_matches2d.append(matches_2d)
+            buffer_matches3d.append(matches_3d)
+            buffer_matches2d.pop(0)
+            buffer_matches3d.pop(0)
+
+        # Join the keypoints to form numpy array of matches
+        jmatches2d = np.vstack(buffer_matches2d)
+        jmatches3d = np.vstack(buffer_matches3d)
+
+        nmatchesagg,_ = np.shape(jmatches2d)
+
+        # Append Matches to buffer
+
+        if nmatchesagg >= 6:
 
             if checkPC == True:
                 plot3dPoints(velodata[i],matches_3d)
 
             # Solve PnP problem
-            _,Rvec,tvec,_ = cv2.solvePnPRansac(matches_3d,matches_2d,K_gt,np.zeros((1,4)))  #,flags=cv2.SOLVEPNP_ITERATIVE
+            _,Rvec,tvec,_ = cv2.solvePnPRansac(jmatches3d,jmatches2d,K_gt,np.zeros((1,4)))  #,flags=cv2.SOLVEPNP_ITERATIVE
 
             # Append solution to list
             T_rel_i = helper_func.rtvec_to_matrix(Rvec,tvec)
@@ -181,11 +203,25 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
             trans_loss, rot_loss = transformationVecLoss(t_gt=t_gt,r_gt=r_gt, t=t_loc, r=r_loc)
             transformationError.append([trans_loss,rot_loss])
 
+    avgTransLoss = 0
+    avgRotLoss = 0
+    tmpcounter = 0
+    for i in range(len(transformationError)):
+        if transformationError[i] is None:
+            continue
+        else:
+            avgTransLoss += transformationError[i][0]
+            avgRotLoss += transformationError[i][1]
+            tmpcounter += 1
+    avgTransLoss /= tmpcounter
+    avgRotLoss /= tmpcounter
 
     # Define dict to extract results
     resDict = {'T_rel': T_rel,
                'Number of Matches': numberMatches,
                'Tranformation Error': transformationError}
+    avgDict = {'Average Translational Error: ': avgTransLoss,
+               'Average Rotational Error: ': avgRotLoss}
     
     # Define location to save results
     fout = output_dir_tf / 'Pose.txt'
@@ -200,6 +236,9 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
     ndict = len(resDict[resKeys[0]])
 
     # Safe results in dict
+    for key in avgDict:
+        fo.write(str(key) + str(avgDict[key]))
+
     for i in range(ndict):
         fo.write(str(i) + ': \n')
         for j in range(len(resKeys)):
