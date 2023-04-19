@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+import torch
 
 from ST_depth_correspondence import helper_func
 
@@ -10,6 +11,8 @@ from SuperGluePretrainedNetwork.models.matching import Matching
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
 
 from utils import upsampleRangeImage, get3dpointFromRangeimage, plot3dPoints, transformationVecLoss
+
+from calibrationDataClass import Calilbration
 
 def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_res, h_res, T_gt, K_gt, config, savePath, device = 'cpu', smoothing = False, upsampleFactor = 1, checkPC = False, aggrMatches = 1):
 
@@ -224,3 +227,127 @@ def matchSuperglue(images0, images1, original_images, velodata, v_fov, h_fov, v_
     fo.close()
 
     return True
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from calibrationClass import CameraLidarCalibration
+
+class SuperGlue_Matching(CameraLidarCalibration):
+    def __init__(self,
+                 savePath,
+                 device,
+                 nms_radius = 4,
+                 sinkhorn_iterations = 50,
+                 match_threshold = 0.4,
+                 keypoint_threshold = 0.005,
+                 max_keypoints = 1024,
+                 superglue = 'outdoor'):
+        
+        super().__init__(savePath=savePath, device=device)
+
+        config = {
+            'superpoint': {
+                'nms_radius': nms_radius,
+                'keypoint_threshold': keypoint_threshold,
+                'max_keypoints': max_keypoints
+            },
+            'superglue': {
+                'weights': superglue,
+                'sinkhorn_iterations': sinkhorn_iterations,
+                'match_threshold': match_threshold,
+            }
+        }
+
+        # Initialize SuperGlue matcher
+        self.matching = Matching(config).eval().to(self.device)
+
+        
+        return
+    
+    # Overload to adjust image size
+    def match_images(self,
+                     Dataclass: Calilbration, 
+                     showPlot=True):
+        
+        pred_inp = super().match_images(Dataclass)
+
+        for i in range(Dataclass.nframes):
+            
+            print('Work on Frame #' + str(i))
+            p = pred_inp[i]
+
+            with torch.no_grad():
+                pred = self.matching(p)
+            
+            pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
+            kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
+            matches, conf = pred['matches0'], pred['matching_scores0']
+
+            # Keep the matching keypoints.
+            valid = matches > -1
+            mkpts0 = kpts0[valid]
+            mkpts1 = kpts1[matches[valid]]
+            mconf = conf[valid]
+
+            # Save matching keypoints
+            Dataclass.mkpts0[i] = mkpts0
+            Dataclass.mkpts1[i] = mkpts1
+
+
+            # Visualize the matches if enabled.
+            if showPlot == True:
+                color = cm.jet(mconf)
+                text = [
+                    'SuperGlue',
+                    'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
+                    'Matches: {}'.format(len(mkpts0)),
+                ]
+
+                # Make Plot
+                # Display extra parameter info.
+                k_thresh = self.matching.superpoint.config['keypoint_threshold']
+                m_thresh = self.matching.superglue.config['match_threshold']
+
+                savePathMatches = self.output_dir_matches / str(str(i).zfill(3) + '.png')
+
+                make_matching_plot(
+                    Dataclass.camera_images_mod[i], Dataclass.lidar_images_mod[i], kpts0, kpts1, mkpts0, mkpts1, color,
+                    text, savePathMatches, show_keypoints=True,
+                    fast_viz=True, opencv_display=True, opencv_title='Matches')
+        return
+    
+    def get2d3dpts_from_mkpts(self, images, v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True, aggrMatches = 1):
+        for i in range(len(images)):
+            # Get 3d Coordinates from matches
+            matches_3d = get3dpointFromRangeimage(images[i],self.mkpts1_ls,v_fov,h_fov,v_res,h_res, upsampleFactor, depth=True)
+            matches_2d = self.mkpts0_ls
+
+            # Add keypoints to buffer
+            if len(self.buffer_matches2d) < aggrMatches:
+                self.matches2d.append(matches_2d)
+                self.matches3d.append(matches_3d)
+            else:
+                self.matches2d.append(matches_2d)
+                self.matches3d.append(matches_3d)
+                self.matches2d.pop(0)
+                self.matches3d.pop(0)
+
+            # Join the keypoints to form numpy array of matches
+            jmatches2d = np.vstack(self.buffer_matches2d)
+            jmatches3d = np.vstack(self.buffer_matches3d)
+        return
+
+
+
+

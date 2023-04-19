@@ -249,3 +249,88 @@ def matchLoFTR(images0, images1, original_images, velodata, v_fov, h_fov, v_res,
     fo.close()
 
     return True
+
+
+from calibrationClass import CameraLidarCalibration
+
+class LoFTR_Matching(CameraLidarCalibration):
+    def __init__(self,
+                 savePath,
+                 device,
+                 weight,
+                 resize = -1
+                 ):
+        
+        super().__init__(savePath=savePath, device=device)
+
+        opt = {'resize': resize,
+                'weight': weight}
+
+        # Initialize LoFTR
+        _default_cfg = deepcopy(default_cfg)
+        # _default_cfg['coarse']['temp_bug_fix'] = True # set to False when using the old ckpt
+        matcher = LoFTR(config=_default_cfg)
+        matcher.load_state_dict(torch.load(opt['weight'])['state_dict'])
+        self.matching = matcher.eval().to(device=device)
+                
+        return
+    
+    # Overload to adjust image size
+    def match_images(self, cameraimages, lidarimages, upsampleFactor, smoothing, showPlot = True):
+        
+        for i in range(len(cameraimages)):
+            cameraimages[i] = self.resizeForResNet(cameraimages[i])
+            lidarimages[i] = self.resizeForResNet(lidarimages[i])
+
+        pred, img0_tf, img1_tf = super().match_images(cameraimages, lidarimages, upsampleFactor, smoothing)
+
+        for i in range(len(pred)):
+            print('Work on Frame #' + str(i))
+            p = pred[i]
+
+            with torch.no_grad():
+                self.matching(p)
+            
+            # dict_keys(['image0', 'image1', 'bs', 'hw0_i', 'hw1_i', 'hw0_c', 'hw1_c', 'hw0_f', 'hw1_f', 'conf_matrix', 'b_ids', 'i_ids', 'j_ids', 'gt_mask', 'm_bids', 'mkpts0_c', 'mkpts1_c', 'mconf', 'W', 'expec_f', 'mkpts0_f', 'mkpts1_f'])
+            mkpts0 = p['mkpts0_f'].cpu().detach().numpy()
+            mkpts1 = p['mkpts1_f'].cpu().detach().numpy()
+            kpts0 = p['mkpts0_c'].cpu().detach().numpy()
+            kpts1 = p['mkpts1_c'].cpu().detach().numpy()
+            mconf = p['mconf'].cpu().detach().numpy()
+
+            # Save matching keypoints
+            self.mkpts0_ls.append(mkpts0)
+            self.mkpts1_ls.append(mkpts1)
+
+            # Visualize the matches if enabled.
+            if showPlot == True:
+                # Make Plot
+                color = cm.jet(mconf)
+                text = [
+                    'LoFTR',
+                    'Keypoints: {}:{}'.format(len(kpts0), len(kpts1)),
+                    'Matches: {}'.format(len(mkpts0)),
+                ]
+
+                savePathMatches = self.output_dir_matches / str(str(i).zfill(3) + '.png')
+
+                make_matching_plot(
+                    img0_tf[i], img1_tf[i], kpts0, kpts1, mkpts0, mkpts1, color,
+                    text, savePathMatches, show_keypoints=True,
+                    fast_viz=True, opencv_display=True, opencv_title='Matches')
+
+        return
+    
+    def resizeForResNet(self,image):
+
+        orig_shape = np.shape(image)
+        
+        resizeImg = ( ((orig_shape[0] // 8) + 1) * 8, ((orig_shape[1] // 8) + 1) * 8 )
+
+        imagebckgrnd = np.zeros(resizeImg, dtype=np.float32)
+
+        img_resize = imagebckgrnd
+
+        img_resize[:orig_shape[0], :orig_shape[1]] = image
+
+        return img_resize

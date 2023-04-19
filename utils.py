@@ -5,6 +5,8 @@ import PIL.Image as pil
 import cv2
 import numpy as np
 import open3d as o3d
+from pathlib import Path
+import matplotlib.pyplot as plt
 
 from monodepth2.utils import download_model_if_doesnt_exist
 import monodepth2.networks as networks
@@ -171,6 +173,203 @@ def plot3dPoints(lidar,reprojection):
     vis.destroy_window()
 
     return
+
+def transformPC(velo_pts: np.array, T: np.array):
+    """
+    Performs the coordinate transformation given a transformation matrix
+    """
+    pts, crd = np.shape(velo_pts)
+
+    # Get LiDAR points in homogeneous shape
+    velo_pts_hom = np.transpose(np.c_[velo_pts[:,0:3], np.ones(pts)])
+    
+    # Perform coordinate transformation and transpose the array to remove homogeneous coordinate
+    velo_pts_hom_tf = np.matmul(T,velo_pts_hom)
+    velo_pts_tf = np.transpose(velo_pts_hom_tf)[:,0:3]
+
+    # Add back column vector of intensities if they were included in the input
+    if crd >= 4:
+        intens = velo_pts[:,-1]
+        velo_pts_tf = np.c_[velo_pts_tf,intens]
+
+    return velo_pts_tf
+
+def veloToDepthImage(K: np.array, velo_pts: np.array, image: np.array, T = np.identity(4), mode='z', trackPoints = True):
+    """
+    A function that maps the points of the LiDAR point cloud to an image plane, given a calibration matrix and a transformation matrix. The image has 2 channels, [0] with depth information, [1] with intensity information.
+    If no intensity chanel is given, the image has 1 channel (depth)
+
+    mode: 'distance' or 'z'
+    """
+    # Perform the coordinate transformation on the point cloud
+    velo_pts_tf = transformPC(velo_pts,T)
+
+    # Add column to track the points original position
+    sv = np.transpose(np.arange(0,np.shape(velo_pts)[0]))
+    if trackPoints == True:
+        velo_pts_tf = np.c_[velo_pts_tf,sv]
+
+    # Remove all points with z <= 0
+    velo_pts_tf = velo_pts_tf[velo_pts_tf[:, 2] > 1e-10]
+
+    # Initialize empty depth image
+    pts, crd = np.shape(velo_pts_tf)
+    if np.ndim(image) == 3:
+        img_hpx, img_wpx, img_c = np.shape(image)
+    if np.ndim(image) == 2:
+        img_hpx, img_wpx = np.shape(image)
+
+    chann_dep = crd - 2
+    # if crd >= 4:
+    #     chann_dep = 2
+
+    # Initialize Depth image with 0
+    depth_image = np.zeros((img_hpx,img_wpx,chann_dep))
+    depth_image[:,:,-1] = -1
+
+    # get [u,v] from all point cloud points ([u,v] = K*Eye*PC)
+    eyetmp = np.eye(3)
+    eye = np.c_[eyetmp,np.zeros((3,1))]
+    pc_img_coord_tmp = np.matmul(K,eye)
+    pc_img_coord = np.matmul(pc_img_coord_tmp, np.transpose(np.c_[velo_pts_tf[:,0:3],np.zeros((pts,1))]) )
+    pc_img_coord = np.transpose(pc_img_coord)
+    pc_img_coord[:,0] /= pc_img_coord[:,2]
+    pc_img_coord[:,1] /= pc_img_coord[:,2]
+    pc_img_coord = pc_img_coord[:,0:2]
+
+    # Get depth value of all points and attach to image coordinates array
+    # attach intensity value if given
+    depth_vec = np.zeros((pts,1))
+    if mode == 'z':
+        depth_vec[:,0] = velo_pts_tf[:,2]
+    if mode == 'distance':
+        depth_vec[:,0] = np.sqrt( velo_pts_tf[:,0]**2 + velo_pts_tf[:,1]**2 + velo_pts_tf[:,2]**2 )
+    pc_img_coord = np.c_[pc_img_coord,depth_vec]
+    if crd >= 4:
+        pc_img_coord = np.c_[pc_img_coord,velo_pts_tf[:,3:]]
+
+    # Remove points outside of image
+    pc_img_coord = pc_img_coord[pc_img_coord[:,0] >= 0]
+    pc_img_coord = pc_img_coord[pc_img_coord[:,1] >= 0]
+    pc_img_coord = pc_img_coord[pc_img_coord[:,0] <= img_wpx]
+    pc_img_coord = pc_img_coord[pc_img_coord[:,1] <= img_hpx]
+
+    # Get pixel coordinates of all points, i.e. round coordinates
+    pc_px_coord = (pc_img_coord[:,0:2]).astype(int)
+
+    # Get indices of all duplicate coordinates
+    pc_px_coord_flattened = pc_px_coord[:,0] + pc_px_coord[:,1] * img_wpx
+    _, idcs = np.unique(pc_px_coord_flattened, return_index=True)
+    duplicate_indices = np.setdiff1d(np.arange(len(pc_px_coord_flattened)), idcs)
+
+    # Fill depth image matrix
+    depth_image[pc_px_coord[:, 1], pc_px_coord[:, 0],:] = pc_img_coord[:, 2:]
+    for i in range(len(duplicate_indices)):
+        coord = pc_px_coord[duplicate_indices[i],:]
+        if depth_image[coord[1],coord[0],0] > pc_img_coord[duplicate_indices[i],2]:
+            depth_image[coord[1],coord[0],:] = pc_img_coord[duplicate_indices[i],2:]
+
+    return depth_image
+
+def rtvec_to_matrix(rvec=(0,0,0), tvec=(0,0,0)):
+    "Convert rotation vector and translation vector to 4x4 matrix"
+    rvec = np.asarray(rvec)
+    tvec = np.asarray(tvec)
+
+    T = np.eye(4)
+    (R, jac) = cv2.Rodrigues(rvec)
+    T[:3, :3] = R
+    T[:3, 3] = tvec.squeeze()
+    return T
+
+def matrix_to_rtvec(matrix):
+    "Convert 4x4 matrix to rotation vector and translation vector"
+    (rvec, jac) = cv2.Rodrigues(matrix[:3, :3])
+    tvec = matrix[:3, 3]
+    return rvec, tvec
+
+def depthTo3Dand2D(depthImage, K):
+
+    depthImage = depthImage.astype(float)
+
+    if np.ndim(depthImage) >= 3:
+        depthImage = depthImage[:,:,0]
+
+    depth_2d = np.transpose(np.nonzero(depthImage))
+    # Switch x y in 2d coordinates
+    depth_2d[:, 0], depth_2d[:, 1] = depth_2d[:, 1], depth_2d[:, 0].copy()
+    
+    # Initialize 3D depth points array and fill z coordinates
+    depth_3d = np.zeros_like(depth_2d)
+    depth_3d = np.c_[depth_3d, depthImage[depth_2d[:,1], depth_2d[:,0]]]
+
+    ## Get x and y coordinates of 3d points by backprojecting pixel coordinates with depth value
+    # x
+    depth_3d[:,0] = (depth_2d[:,0] - K[0,2]) / K[0,0] * depth_3d[:,2]
+    # y
+    depth_3d[:,1] = (depth_2d[:,1] - K[1,2]) / K[1,1] * depth_3d[:,2]
+
+    return depth_2d.astype(float), depth_3d
+
+def depthmapToPts(depthImage,veloPts):
+    """
+    depthImage: (H,W,2), channel 0 = depth value, channel 1 = idx from lidar data
+    """
+
+    depthImage = depthImage.astype(float)
+
+    depth_2d = np.transpose(np.nonzero(depthImage[:,:,1]+1))
+    veloidcs = depthImage[depth_2d[:,0],depth_2d[:,1]][:,1].astype(int)
+    depth_3d = veloPts[veloidcs,0:3]
+    
+    # Switch x y in 2d coordinates
+    depth_2d[:, 0], depth_2d[:, 1] = depth_2d[:, 1], depth_2d[:, 0].copy()
+
+    return depth_2d.astype(float), depth_3d
+    
+
+def plotOverlay(rgb, lidar, ax = None, color_map = 'jet', size_scale = 800, savePath = -1, returnAxis = True, **plt_kwargs):
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+        # Clear the figure
+        fig.clf()
+
+    if returnAxis == False:
+        del ax
+        ax = plt.gca()
+
+    ax.clear()
+
+    # Display Gray / RGB images
+    if np.ndim(rgb) == 3:
+        _,_,ctmp = np.shape(rgb)
+        if ctmp == 3:
+            # Display RGB
+            ax.imshow(rgb)
+        elif ctmp == 1:
+            ax.imshow(rgb, cmap = 'gray')
+    if np.ndim(rgb) == 2:
+        ax.imshow(rgb, cmap = 'gray')
+
+    # Remove intensity channel
+    if np.ndim(lidar) == 3:
+        lidar = lidar[:,:,0]
+
+    # Normalize Depth Images
+    depth1_scaled = (lidar[:,:]-np.min(lidar[:,:,]))/np.max(lidar[:,:])*255
+
+    # Get the indices of non-zero elements in the depth map
+    points1 = np.nonzero(lidar[:,:])
+
+    # Plot depth points with scatter
+    ax.scatter(points1[1], points1[0], s=depth1_scaled[points1]/size_scale, c=depth1_scaled[points1], cmap=color_map, alpha=0.99)
+
+    if savePath != -1:
+        print('Saving Image')
+        plt.savefig(savePath, bbox_inches='tight', pad_inches=0, transparent = True, dpi = 250)
+   
+    return ax
 
 # Cost functions
 ##############
