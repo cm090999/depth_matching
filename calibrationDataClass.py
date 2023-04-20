@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import copy
 
 from utils import upsampleRangeImage, get3dpointFromRangeimage, rtvec_to_matrix, veloToDepthImage, plotOverlay, transformationVecLoss
 
@@ -8,7 +9,8 @@ class Calilbration():
                  camera_images: list, 
                  lidar_images: list,
                  v_fov: tuple,
-                 h_fov: tuple):
+                 h_fov: tuple,
+                 rgbImages = None):
 
         ## assigned here
         self.camera_images = camera_images
@@ -16,6 +18,7 @@ class Calilbration():
         self.nframes = len(self.camera_images)
         self.v_fov = v_fov
         self.h_fov = h_fov
+        self.rgbImages = rgbImages
 
         ## assigned here, modified in getModifiedImages
         self.normalize = True
@@ -27,8 +30,8 @@ class Calilbration():
 
         ## assigned in getModifiedImages
         # Modified images
-        self.camera_images_mod = [None] * self.nframes
-        self.lidar_images_mod = [None] * self.nframes
+        self.camera_images_mod = copy.deepcopy(self.camera_images)
+        self.lidar_images_mod = copy.deepcopy(self.lidar_images)
 
         ## assigned in match_images
         # Matching keypoints in modified image coordinates
@@ -69,6 +72,8 @@ class Calilbration():
         self.smoothing = smoothing
         
         for i in range(self.nframes):
+
+            # self.lidar_images_mod[i] = self.lidar_images[i]
             
             if normalize == True:
                 self.camera_images_mod[i] = (((self.camera_images[i] - np.min(self.camera_images[i])) / np.max(self.camera_images[i])) * 255).astype(np.float32)
@@ -85,8 +90,9 @@ class Calilbration():
     def get2d3dpts_from_mkpts(self):
         for i in range(self.nframes):
             # Get 3d Coordinates from matches
-            self.matches3d[i] = get3dpointFromRangeimage(self.lidar_images_mod[i],self.mkpts1[i],self.v_fov,self.h_fov,0,0, self.upsamplefactor, depth=True)
-            self.matches2d[i] = self.mkpts0[i]
+            tmpLidar = upsampleRangeImage(self.lidar_images[i], self.upsamplefactor)
+            self.matches3d[i] = get3dpointFromRangeimage(tmpLidar,self.mkpts1[i],self.v_fov,self.h_fov, self.upsamplefactor).astype(np.float32)
+            self.matches2d[i] = self.mkpts0[i].astype(np.float32)
 
         return
     
@@ -119,10 +125,15 @@ class Calilbration():
             else:
                 self.numberAggMatches[i], _ = np.shape(self.matches2d_agg[i])
 
+        for i in range(self.n_agg-1):
+            self.numberAggMatches[i] = None
+
         return
     
     def solve_pnp_agg(self, K_int, dist = np.zeros((1,4))):
         for i in range(self.nframes):
+            if self.numberAggMatches[i] is None:
+                continue
             if self.numberAggMatches[i] >= 6:
 
                 # Solve PnP problem
@@ -133,16 +144,25 @@ class Calilbration():
     def reprojectLidar(self, K_int: np.ndarray, velodata: list, savePathproj):
                     
         for i in range(self.nframes):
+            if self.numberAggMatches[i] is None:
+                continue
             if self.numberAggMatches[i] >= 6:
 
                 fileName = str(i).zfill(3) + '.png'
                 savepth = savePathproj / fileName
-                    
-                # Reproject LiDAR to image
-                R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
-                depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
-                plotOverlay(rgb = self.camera_images[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
 
+                if self.rgbImages is None:
+                        
+                    # Reproject LiDAR to image
+                    R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
+                    depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
+                    plotOverlay(rgb = self.camera_images[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
+
+                else:
+                    # Reproject LiDAR to image
+                    R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
+                    depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
+                    plotOverlay(rgb = self.rgbImages[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
         return
     
     def calculateError(self,r_gt,t_gt, pnorm = 2):
@@ -167,6 +187,11 @@ class Calilbration():
             self.t_error_avg += self.t_error[i]
             ntmp += 1
         
+        if ntmp == 0:
+            self.r_error_avg = None
+            self.t_error_avg = None
+            return
+
         self.r_error_avg /= ntmp
         self.t_error_avg /= ntmp
 
@@ -210,12 +235,44 @@ class Calilbration():
     def saveImages(self, camPath, lidarPath):
 
         for i in range(self.nframes):
+            
             fileName = str(str(i).zfill(3) + '.png')
             savepth_cam = camPath / fileName
             savepth_lid = lidarPath / fileName
 
-            cv2.imwrite(savepth_cam, self.camera_images[i])
-            cv2.imwrite(savepth_lid, self.lidar_images[i])
+            cv2.imwrite(str(savepth_cam), self.camera_images[i])
+            cv2.imwrite(str(savepth_lid), self.lidar_images[i])
+
+        return
+    
+
+class Calibration_Range(Calilbration):
+    def __init__(self, 
+                 camera_images: list, 
+                 lidar_images: list,
+                 v_fov: tuple,
+                 h_fov: tuple,
+                 rangeCorr: list,
+                 rgbImages = None):
+        super().__init__(camera_images,
+                         lidar_images,
+                         v_fov,
+                         h_fov,
+                         rgbImages)
+        
+        self.rangeCorr = rangeCorr
+
+        return
+    
+    def get2d3dpts_from_mkpts(self):
+
+        for i in range(self.nframes):
+            # Get 3d Coordinates from matches
+            tmpLidar = upsampleRangeImage(self.lidar_images[i], self.upsamplefactor)
+            self.matches3d[i] = get3dpointFromRangeimage(tmpLidar,self.mkpts1[i],self.v_fov,self.h_fov, self.upsamplefactor).astype(np.float32)
+            origPX = self.rangeCorr[i][(self.mkpts0[i][:,1]).astype(int), (self.mkpts0[i][:,0]).astype(int)]
+
+            self.matches2d[i] = origPX
 
         return
 

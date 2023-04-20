@@ -222,10 +222,10 @@ def rangeImagefromImage(image: np.ndarray, K: np.ndarray, h_res: float, v_res: f
 
 # import cv2
 
-# /home/colin/semesterThesis/code_conda_env/depth_matching/RES_LoFTR/monodepth2/000.png
-# /home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png
+# # /home/colin/semesterThesis/code_conda_env/depth_matching/RES_LoFTR/monodepth2/000.png
+# # /home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png
 
-# testimg = cv2.imread('/home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png')
+# testimg = cv2.imread('/home/colin/semesterThesis/code_conda_env/depth_matching/RESULT/monodepth2/000.png')
 # # testimg[50:100,120:150] = 0
 # K = np.array(  [[721.5377,   0.    , 609.5593],
 #                 [  0.    , 721.5377, 172.854 ],

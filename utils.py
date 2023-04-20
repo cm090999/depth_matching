@@ -81,9 +81,9 @@ def upsampleRangeImage(rangeImage,factor):
     return resized
 
 
-def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamplefactor, depth = False):
+def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, upsamplefactor):
     # # Scale coordinates if image is upsampled
-    kpts /= upsamplefactor
+    # kpts /= upsamplefactor
 
     # Get shape of range image
     px_y, px_x = np.shape(rangeImage)
@@ -91,7 +91,6 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
     # Get x, y image coordinates
     kptsx = kpts[:,0]
     kptsy = kpts[:,1]
-    # kptsdepth = rangeImage[kptsy.astype(int),kptsx.astype(int)]
 
     # Get angles from range image
     v_fov_range = np.absolute(v_fov[1] - v_fov[0])
@@ -105,36 +104,14 @@ def get3dpointFromRangeimage(rangeImage,kpts, v_fov, h_fov, v_res, h_res, upsamp
     vert_ang_kpts = v_fov_topleft + v_fov_ascending * v_fov_range / px_y * kptsy
     horz_ang_kpts = h_fov_topleft + h_fov_ascending * h_fov_range / px_x * kptsx
 
-
     # Initialize coordinate frame
     velopts = np.zeros((np.shape(kpts)[0],3))
 
-    # Values from kitti_tutorial_func
-    vmax = 120
-    vmin = 0
-
-    # Transform depth values to real distances
-    if depth == True:
-        depim = vmax - 1/255*rangeImage * (vmax - vmin)
-    if depth == False:
-        depim = vmin + 1/255*rangeImage * (vmax - vmin)
-    if depth == -1:
-        depim = rangeImage
-
+    depim = rangeImage
     depim = rangeImage[kptsy.astype(int),kptsx.astype(int)]
 
     # Calculate z
     velopts[:,2] = depim * np.tan(vert_ang_kpts * np.pi / 180)
-
-    ydivx = depim * np.tan(horz_ang_kpts * np.pi / 180)
-    #    y = alpha * x
-
-    # velopts[:,0] = np.sqrt((depim**2 - velopts[:,2]**2) / (1 + ydivx**2))
-    # #   dist**2 = x**2 + y**2 + z**2 = x**2 + (alpha * x)**2 + z**2
-    # #   dist**2 - z**2 = (1 + alpha**2) * x**2
-    # #   np.sqrt((dist**2 - z**2) / (1 + alpha**2)) = x
-
-    # velopts[:,1] = ydivx * velopts[:,0]
 
     # # Calculate x
     velopts[:,0] = depim * np.cos(horz_ang_kpts * np.pi / 180)
@@ -329,6 +306,8 @@ def depthmapToPts(depthImage,veloPts):
     
 
 def plotOverlay(rgb, lidar, ax = None, color_map = 'jet', size_scale = 800, savePath = -1, returnAxis = True, **plt_kwargs):
+    plt.close()
+
     if ax is None:
         fig, ax = plt.subplots()
     
@@ -381,13 +360,16 @@ def transformationVecLoss(t_gt, r_gt, t, r, pnorm = 2):
     t = t.ravel()
     r = r.ravel()
 
+    t_gt_tmp = t_gt.ravel()
+    r_gt_tmp = r_gt.ravel()
+
     for i in range(3):
-        cost_tra += (np.abs(t_gt[i]**pnorm - t[i]**pnorm))**(1/pnorm)
+        cost_tra += (t_gt_tmp[i] - t[i])**(pnorm)
     
     for i in range(3):
-        cost_rot += (np.abs(r_gt[i]**pnorm - r[i]**pnorm))**(1/pnorm)
+        cost_rot += (r_gt_tmp[i] - r[i])**(pnorm)
 
-    return cost_tra, cost_rot
+    return cost_tra**(1/pnorm), cost_rot**(1/pnorm)
 
 
 def pointCloudLoss(pc, T_gt, T):
