@@ -12,7 +12,7 @@ from calibrationDataClass import Calilbration
 
 from LoFTR.src.loftr import LoFTR, default_cfg
 
-from SuperGluePretrainedNetwork.models.utils import make_matching_plot
+from SuperGluePretrainedNetwork.models.utils import make_matching_plot,frame2tensor
 
 from calibrationClass import CameraLidarCalibration
 
@@ -50,14 +50,17 @@ class LoFTR_Matching(CameraLidarCalibration):
             resized_Dataclass.camera_images_mod[i] = self.resizeForResNet(resized_Dataclass.camera_images_mod[i])
             resized_Dataclass.lidar_images_mod[i] = self.resizeForResNet(resized_Dataclass.lidar_images_mod[i])
         
-        pred_inp = super().match_images(resized_Dataclass)
+        # pred_inp = super().match_images(resized_Dataclass)
 
         del resized_Dataclass
 
         for i in range(Dataclass.nframes):
 
             print('Work on Frame #' + str(i))
-            p = pred_inp[i]
+            inp0 = frame2tensor(Dataclass.camera_images_mod[i], self.device)
+            inp1 = frame2tensor(Dataclass.lidar_images_mod[i], self.device)
+            p = {'image0': inp0, 'image1': inp1}
+            # p = pred_inp[i]
 
             mem = tuple(ti/1e9 for ti in torch.cuda.mem_get_info())
             print('Memory on frame #' + str(i) + str(mem))
