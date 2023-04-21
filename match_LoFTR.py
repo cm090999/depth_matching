@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import torch
 from copy import deepcopy
 
+import torch.autograd.profiler as profiler
+
 from calibrationDataClass import Calilbration
 
 from LoFTR.src.loftr import LoFTR, default_cfg
@@ -21,7 +23,8 @@ class LoFTR_Matching(CameraLidarCalibration):
                  weight,
                  resize = -1
                  ):
-        
+        mem = tuple(ti/1e9 for ti in torch.cuda.mem_get_info())
+        print('Memory before loading LoFTR'+ str(mem))
         super().__init__(savePath=savePath, device=device)
 
         opt = {'resize': resize,
@@ -56,6 +59,9 @@ class LoFTR_Matching(CameraLidarCalibration):
             print('Work on Frame #' + str(i))
             p = pred_inp[i]
 
+            mem = tuple(ti/1e9 for ti in torch.cuda.mem_get_info())
+            print('Memory on frame #' + str(i) + str(mem))
+
             with torch.no_grad():
                 self.matching(p)
             
@@ -65,6 +71,7 @@ class LoFTR_Matching(CameraLidarCalibration):
             kpts0 = p['mkpts0_c'].cpu().detach().numpy()
             kpts1 = p['mkpts1_c'].cpu().detach().numpy()
             mconf = p['mconf'].cpu().detach().numpy()
+            
 
             # Save matching keypoints
             Dataclass.mkpts0[i] = mkpts0
@@ -89,6 +96,9 @@ class LoFTR_Matching(CameraLidarCalibration):
                 
                 plt.close()
                 plt.clf()
+
+            torch.cuda.empty_cache
+
 
         return
     

@@ -97,10 +97,7 @@ if __name__ == "__main__":
         range_monodepthImages_corr.append(rangeImg_md_corr)
 
 
-
-
     ########### Calibration ###########
-
 
 
     # Paths
@@ -109,119 +106,120 @@ if __name__ == "__main__":
     timestamp = now.strftime('%Y-%m-%d-%H-%M-%S')
     resultPath = 'RESULT/' + timestamp
 
-    ### SuperGlue ###
-    # Initialize Data structure
-    CalibrationSuperGlue_r = Calibration_Range(range_monodepthImages,
-                                        rangeImages,
-                                        v_fov=v_fov,
-                                        h_fov=h_fov,
-                                        rangeCorr=range_monodepthImages_corr,
-                                        rgbImages=images)
-    CalibrationSuperGlue_r.getModifiedImages(normalize=True,
-                                           upsamplefactor=1,
-                                           smoothing=smoothing)
+    # ### SuperGlue ###
+    # # Initialize Data structure
+    # CalibrationSuperGlue_r = Calibration_Range(range_monodepthImages,
+    #                                     rangeImages,
+    #                                     v_fov=v_fov,
+    #                                     h_fov=h_fov,
+    #                                     rangeCorr=range_monodepthImages_corr,
+    #                                     rgbImages=images)
+    # CalibrationSuperGlue_r.getModifiedImages(normalize=True,
+    #                                        upsamplefactor=1,
+    #                                        smoothing=smoothing)
     
-    # Initialize SuperGlue Matcher
-    Superglue_matching_r = SuperGlue_Matching(savePath=resultPath + '/SuperGlue_range_range',
-                                            device=device
-                                            )
+    # # Initialize SuperGlue Matcher
+    # Superglue_matching_r = SuperGlue_Matching(savePath=resultPath + '/SuperGlue_range_range',
+    #                                         device=device
+    #                                         )
 
-    # Perform Matching
-    superGlueMatches = Superglue_matching_r.match_images(CalibrationSuperGlue_r,
-                                                       showPlot=True)
-    
-    # Convert mkpts to original image coordinates and 3d coordinates
-    CalibrationSuperGlue_r.get2d3dpts_from_mkpts()
-    # Get aggregated matches
-    CalibrationSuperGlue_r.getAggreg_pts(n_agg=aggregateMatches)
-    CalibrationSuperGlue_r.getNumMatches()
-
-    # Solve Pnp
-    CalibrationSuperGlue_r.solve_pnp_agg(K_gt)
-
-    # Reproject Images
-    CalibrationSuperGlue_r.reprojectLidar(K_gt,velodata,Superglue_matching_r.output_dir_reproj)
-
-    CalibrationSuperGlue_r.calculateError(r_gt=r_gt,t_gt=t_gt)
-
-    CalibrationSuperGlue_r.writeTo_TXT(Superglue_matching_r.output_dir_tf)
-
-    CalibrationSuperGlue_r.saveImages(Superglue_matching_r.output_dir_camera, Superglue_matching_r.output_dir_lidar)
-    print('Finished Range-Range')
-    ### SuperGlue ###
-
-    ### SuperGlue ###
-    # Initialize Data structure
-    CalibrationSuperGlue = Calilbration(monodepthImages,
-                                        rangeImages,
-                                        v_fov=v_fov,
-                                        h_fov=h_fov,
-                                        rgbImages=images)
-    CalibrationSuperGlue.getModifiedImages(normalize=True,
-                                           upsamplefactor=upsampleFactor,
-                                           smoothing=smoothing)
-    
-    # Initialize SuperGlue Matcher
-    Superglue_matching = SuperGlue_Matching(savePath=resultPath + '/SuperGlue',
-                                            device=device
-                                            )
-    # Perform Matching
-    superGlueMatches = Superglue_matching.match_images(CalibrationSuperGlue,
-                                                       showPlot=True)
-    
-    # Convert mkpts to original image coordinates and 3d coordinates
-    CalibrationSuperGlue.get2d3dpts_from_mkpts()
-    # Get aggregated matches
-    CalibrationSuperGlue.getAggreg_pts(n_agg=aggregateMatches)
-    CalibrationSuperGlue.getNumMatches()
-
-    # Solve Pnp
-    CalibrationSuperGlue.solve_pnp_agg(K_gt)
-
-    # Reproject Images
-    CalibrationSuperGlue.reprojectLidar(K_gt,velodata,Superglue_matching.output_dir_reproj)
-
-    CalibrationSuperGlue.calculateError(r_gt=r_gt,t_gt=t_gt)
-
-    CalibrationSuperGlue.writeTo_TXT(Superglue_matching.output_dir_tf)
-
-    CalibrationSuperGlue.saveImages(Superglue_matching.output_dir_camera, Superglue_matching.output_dir_lidar)
-    ### SuperGlue ###
-
-
-    # ### LoFTR ###
-    # CalibrationLoFTR = Calilbration(monodepthImages,
-    #                                 rangeImages,
-    #                                 v_fov=v_fov,
-    #                                 h_fov=h_fov,
-    #                                 rgbImages=images)
-    # CalibrationLoFTR.getModifiedImages( normalize=True,
-    #                                     upsamplefactor=upsampleFactor,
-    #                                     smoothing=smoothing)
-    # loftr_matching = LoFTR_Matching(savePath=resultPath + '/LoFTR',
-    #                                 device=device,
-    #                                 weight='LoFTR/weights/outdoor_ds.ckpt',
-    #                                 resize=-1
-    #                                 )
-     
-    # loftrMatches = loftr_matching.match_images( CalibrationLoFTR,
-    #                                             showPlot=True)
+    # # Perform Matching
+    # superGlueMatches = Superglue_matching_r.match_images(CalibrationSuperGlue_r,
+    #                                                    showPlot=True)
     
     # # Convert mkpts to original image coordinates and 3d coordinates
-    # CalibrationLoFTR.get2d3dpts_from_mkpts()
+    # CalibrationSuperGlue_r.get2d3dpts_from_mkpts()
     # # Get aggregated matches
-    # CalibrationLoFTR.getAggreg_pts(n_agg=aggregateMatches)
-    # CalibrationLoFTR.getNumMatches()
+    # CalibrationSuperGlue_r.getAggreg_pts(n_agg=aggregateMatches)
+    # CalibrationSuperGlue_r.getNumMatches()
 
     # # Solve Pnp
-    # CalibrationLoFTR.solve_pnp_agg(K_gt)
+    # CalibrationSuperGlue_r.solve_pnp_agg(K_gt)
 
     # # Reproject Images
-    # CalibrationLoFTR.reprojectLidar(K_gt,velodata,loftr_matching.output_dir_reproj)
+    # CalibrationSuperGlue_r.reprojectLidar(K_gt,velodata,Superglue_matching_r.output_dir_reproj)
 
-    # CalibrationLoFTR.calculateError(r_gt=r_gt,t_gt=t_gt)
+    # CalibrationSuperGlue_r.calculateError(r_gt=r_gt,t_gt=t_gt)
 
-    # CalibrationLoFTR.writeTo_TXT(loftr_matching.output_dir_tf)
+    # CalibrationSuperGlue_r.writeTo_TXT(Superglue_matching_r.output_dir_tf)
 
-    # CalibrationLoFTR.saveImages(loftr_matching.output_dir_camera, loftr_matching.output_dir_lidar)
-    # ### LoFTR ###
+    # CalibrationSuperGlue_r.saveImages(Superglue_matching_r.output_dir_camera, Superglue_matching_r.output_dir_lidar)
+    # print('Finished Range-Range')
+    # ### SuperGlue ###
+
+
+    # ### SuperGlue ###
+    # # Initialize Data structure
+    # CalibrationSuperGlue = Calilbration(monodepthImages,
+    #                                     rangeImages,
+    #                                     v_fov=v_fov,
+    #                                     h_fov=h_fov,
+    #                                     rgbImages=images)
+    # CalibrationSuperGlue.getModifiedImages(normalize=True,
+    #                                        upsamplefactor=upsampleFactor,
+    #                                        smoothing=smoothing)
+    
+    # # Initialize SuperGlue Matcher
+    # Superglue_matching = SuperGlue_Matching(savePath=resultPath + '/SuperGlue',
+    #                                         device=device
+    #                                         )
+    # # Perform Matching
+    # superGlueMatches = Superglue_matching.match_images(CalibrationSuperGlue,
+    #                                                    showPlot=True)
+    
+    # # Convert mkpts to original image coordinates and 3d coordinates
+    # CalibrationSuperGlue.get2d3dpts_from_mkpts()
+    # # Get aggregated matches
+    # CalibrationSuperGlue.getAggreg_pts(n_agg=aggregateMatches)
+    # CalibrationSuperGlue.getNumMatches()
+
+    # # Solve Pnp
+    # CalibrationSuperGlue.solve_pnp_agg(K_gt)
+
+    # # Reproject Images
+    # CalibrationSuperGlue.reprojectLidar(K_gt,velodata,Superglue_matching.output_dir_reproj)
+
+    # CalibrationSuperGlue.calculateError(r_gt=r_gt,t_gt=t_gt)
+
+    # CalibrationSuperGlue.writeTo_TXT(Superglue_matching.output_dir_tf)
+
+    # CalibrationSuperGlue.saveImages(Superglue_matching.output_dir_camera, Superglue_matching.output_dir_lidar)
+    # ### SuperGlue ###
+
+
+    ### LoFTR ###
+    CalibrationLoFTR = Calilbration(monodepthImages,
+                                    rangeImages,
+                                    v_fov=v_fov,
+                                    h_fov=h_fov,
+                                    rgbImages=images)
+    CalibrationLoFTR.getModifiedImages( normalize=True,
+                                        upsamplefactor=upsampleFactor,
+                                        smoothing=smoothing)
+    loftr_matching = LoFTR_Matching(savePath=resultPath + '/LoFTR',
+                                    device=device,
+                                    weight='LoFTR/weights/outdoor_ds.ckpt',
+                                    resize=-1
+                                    )
+     
+    loftrMatches = loftr_matching.match_images( CalibrationLoFTR,
+                                                showPlot=True)
+    
+    # Convert mkpts to original image coordinates and 3d coordinates
+    CalibrationLoFTR.get2d3dpts_from_mkpts()
+    # Get aggregated matches
+    CalibrationLoFTR.getAggreg_pts(n_agg=aggregateMatches)
+    CalibrationLoFTR.getNumMatches()
+
+    # Solve Pnp
+    CalibrationLoFTR.solve_pnp_agg(K_gt)
+
+    # Reproject Images
+    CalibrationLoFTR.reprojectLidar(K_gt,velodata,loftr_matching.output_dir_reproj)
+
+    CalibrationLoFTR.calculateError(r_gt=r_gt,t_gt=t_gt)
+
+    CalibrationLoFTR.writeTo_TXT(loftr_matching.output_dir_tf)
+
+    CalibrationLoFTR.saveImages(loftr_matching.output_dir_camera, loftr_matching.output_dir_lidar)
+    ### LoFTR ###
