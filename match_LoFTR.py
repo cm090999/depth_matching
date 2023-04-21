@@ -23,8 +23,6 @@ class LoFTR_Matching(CameraLidarCalibration):
                  weight,
                  resize = -1
                  ):
-        mem = tuple(ti/1e9 for ti in torch.cuda.mem_get_info())
-        print('Memory before loading LoFTR'+ str(mem))
         super().__init__(savePath=savePath, device=device)
 
         opt = {'resize': resize,
@@ -36,7 +34,7 @@ class LoFTR_Matching(CameraLidarCalibration):
         matcher = LoFTR(config=_default_cfg)
         matcher.load_state_dict(torch.load(opt['weight'])['state_dict'])
         self.matching = matcher.eval().to(device=device)
-                
+
         return
     
     # Overload to adjust image size
@@ -50,7 +48,6 @@ class LoFTR_Matching(CameraLidarCalibration):
             resized_Dataclass.camera_images_mod[i] = self.resizeForResNet(resized_Dataclass.camera_images_mod[i])
             resized_Dataclass.lidar_images_mod[i] = self.resizeForResNet(resized_Dataclass.lidar_images_mod[i])
         
-        # pred_inp = super().match_images(resized_Dataclass)
 
         del resized_Dataclass
 
@@ -60,10 +57,6 @@ class LoFTR_Matching(CameraLidarCalibration):
             inp0 = frame2tensor(Dataclass.camera_images_mod[i], self.device)
             inp1 = frame2tensor(Dataclass.lidar_images_mod[i], self.device)
             p = {'image0': inp0, 'image1': inp1}
-            # p = pred_inp[i]
-
-            mem = tuple(ti/1e9 for ti in torch.cuda.mem_get_info())
-            print('Memory on frame #' + str(i) + str(mem))
 
             with torch.no_grad():
                 self.matching(p)

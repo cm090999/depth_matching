@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import copy
 
-from utils import upsampleRangeImage, get3dpointFromRangeimage, rtvec_to_matrix, veloToDepthImage, plotOverlay, transformationVecLoss
+from utils import upsampleRangeImage, get3dpointFromRangeimage, rtvec_to_matrix, veloToDepthImage, plotOverlay, transformationVecLoss, visualizeCalibration
 
 class Calilbration():
     def __init__(self, 
@@ -154,15 +154,17 @@ class Calilbration():
                 if self.rgbImages is None:
                         
                     # Reproject LiDAR to image
-                    R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
-                    depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
-                    plotOverlay(rgb = self.camera_images[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
+                    # R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
+                    # depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
+                    # plotOverlay(rgb = self.camera_images[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
+                    visualizeCalibration(self.rgbImages[i], velodata[i], K_int, self.r_vec[i], self.t_vec[i], savePath=savepth)
 
                 else:
                     # Reproject LiDAR to image
-                    R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
-                    depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
-                    plotOverlay(rgb = self.rgbImages[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
+                    # R_pnp = rtvec_to_matrix(self.r_vec[i], self.t_vec[i])
+                    # depthimageTF = veloToDepthImage(K_int,velodata[i],self.camera_images[i],R_pnp,mode = 'z', trackPoints=False)
+                    # plotOverlay(rgb = self.rgbImages[i], lidar = depthimageTF, savePath=savepth, returnAxis = False)
+                    visualizeCalibration(self.rgbImages[i], velodata[i], K_int, self.r_vec[i], self.t_vec[i], savePath=savepth)
         return
     
     def calculateError(self,r_gt,t_gt, pnorm = 2):
@@ -197,16 +199,22 @@ class Calilbration():
 
         return
     
-    def writeTo_TXT(self,txtpath):
+    def writeTo_TXT(self,txtpath,r_gt = None, t_gt = None):
 
         # Define dict to extract results
-        resDict = {'Number of Matches: ': self.numberMatches,
-                'Number of aggregated Matches: ': self.numberAggMatches,
-                'Tranformation Error Rotation: ': self.r_error,
-                'Tranformation Error Translation: ': self.t_error}
+        resDict = { 'Number of Matches: ': self.numberMatches,
+                    'Number of aggregated Matches: ': self.numberAggMatches,
+                    'Rotation: ': self.r_vec,
+                    'Translation: ': self.t_vec,
+                    'Tranformation Error Rotation: ': self.r_error,
+                    'Tranformation Error Translation: ': self.t_error
+                    }
         
-        avgDict = {'Average Translational Error: ': self.t_error_avg,
-                'Average Rotational Error: ': self.r_error_avg}
+        avgDict = { 'Ground Truth Rotation: ': r_gt,
+                    'Ground Truth Translation: ': t_gt,
+                    'Average Translational Error: ': self.t_error_avg,
+                    'Average Rotational Error: ': self.r_error_avg
+                    }
         
         # Define location to save results
         fout = txtpath / 'Pose.txt'

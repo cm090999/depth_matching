@@ -350,6 +350,64 @@ def plotOverlay(rgb, lidar, ax = None, color_map = 'jet', size_scale = 800, save
    
     return ax
 
+def visualizeCalibration(rgb, lidar, K_int, rvec, tvec, color_map = 'jet', size_scale = 1600, savePath = -1, **plt_kwargs):
+    # Start plotting
+    ax = plt.gca()
+    ax.clear()
+
+    # Get image shape
+    h, w, c = np.shape(rgb)
+
+    # Get transformed lidar
+    T = rtvec_to_matrix(rvec,tvec)
+    lidar_tf = transformPC(lidar, T)
+
+    # Mask points behind camera
+    mask_behind = lidar_tf[:,2] > 0
+    lidar = lidar[mask_behind,:]
+
+    # Get corresponding depth value
+    depth = lidar[:,2]
+
+    # Check if npoints > 0
+    pts, _ = np.shape(lidar)
+    if pts == 0:
+        ax.imshow(rgb)
+        return
+
+    # Project LiDAR points onto image plane
+    lidar = lidar.astype(np.float32)
+    projected_lidar,_ = cv2.projectPoints(lidar, rvec, tvec, K_int, distCoeffs=np.zeros((1,4)))
+
+    mask = (projected_lidar[:, 0, 0] >= 0) & (projected_lidar[:, 0, 0] < w) & (projected_lidar[:, 0, 1] >= 0) & (projected_lidar[:, 0, 1] < h)
+    projected_lidar_filtered = projected_lidar[mask, :]
+    depth = depth[mask,]
+    projected_lidar = projected_lidar_filtered[:,0,:]
+
+    # Normalize depth
+    npoints, _ = np.shape(projected_lidar)
+
+    if npoints == 0:
+        ax.imshow(rgb)
+        return
+        
+    depth_norm = (depth - np.min(depth)) / np.max(depth) * 255
+
+    # Lookup array
+    lookupVec = np.arange(0,npoints)
+
+    # Show image
+    ax.imshow(rgb)
+
+    # Plot points
+    ax.scatter(projected_lidar[lookupVec,0], projected_lidar[lookupVec,1], s=depth_norm[lookupVec]/size_scale, c=depth_norm[lookupVec], cmap=color_map, alpha=0.99)
+
+    if savePath != -1:
+        print('Saving Image')
+        plt.savefig(savePath, bbox_inches='tight', pad_inches=0, transparent = True, dpi = 256)
+
+    return
+
 # Cost functions
 ##############
 
