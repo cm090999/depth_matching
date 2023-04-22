@@ -7,9 +7,7 @@ import matplotlib.pyplot as plt
 
 from SuperGluePretrainedNetwork.models.utils import frame2tensor, make_matching_plot
 
-from utils import upsampleRangeImage
-
-from ST_depth_correspondence import helper_func
+from utils import upsampleRangeImage, rtvec_to_matrix, veloToDepthImage, plotOverlay
 
 from calibrationDataClass import Calilbration
 
@@ -87,9 +85,9 @@ class CameraLidarCalibration:
             fileName = str(i).zfill(3) + '.png'
             savepth = self.output_dir_reproj / fileName
             # Reproject LiDAR to image
-            R_pnp = helper_func.rtvec_to_matrix(self.r_vec, self.t_vec)
-            depthimageTF = helper_func.veloToDepthImage(K,velodata[i],image[i],R_pnp,mode = 'z', trackPoints=False)
+            R_pnp = rtvec_to_matrix(self.r_vec, self.t_vec)
+            depthimageTF = veloToDepthImage(K,velodata[i],image[i],R_pnp,mode = 'z', trackPoints=False)
             
-            helper_func.plotOverlay(rgb = image[i],lidar = depthimageTF, savePath=savepth, returnAxis = False)
+            plotOverlay(rgb = image[i],lidar = depthimageTF, savePath=savepth, returnAxis = False)
 
         return
