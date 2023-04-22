@@ -169,8 +169,10 @@ def rangeImagefromImage(image: np.ndarray, K: np.ndarray, h_res: float, v_res: f
     cx = K[0,2]
     cy = K[1,2]
     
-    fov_x = ( -np.arctan((cx) / (K[0,0])), np.arctan((w - cx) / (K[0,0])) )
-    fov_y = ( -np.arctan((cy) / (K[1,1])), np.arctan((h - cy) / (K[1,1])) )
+    # fov_x = ( -np.arctan((cx) / (K[0,0])), np.arctan((w - cx) / (K[0,0])) )
+    # fov_y = ( -np.arctan((cy) / (K[1,1])), np.arctan((h - cy) / (K[1,1])) )
+    fov_x = ( -np.arctan((cx-0.5) / (K[0,0])), np.arctan((w - 0.5 - cx) / (K[0,0])) )
+    fov_y = ( -np.arctan((cy-0.5) / (K[1,1])), np.arctan((h - 0.5 - cy) / (K[1,1])) )
 
     # Get range of angles 
     hor_angle_range = fov_x[1] - fov_x[0]
@@ -201,33 +203,37 @@ def rangeImagefromImage(image: np.ndarray, K: np.ndarray, h_res: float, v_res: f
     
     # Projected Coordinates (== image coordinates)
     coords_proj = np.matmul(K  ,np.transpose(coords_3d))[0:2,:]
-    x_rangeCorr = np.reshape(coords_proj[0,:], np.shape(rangeImage)) - 0.5
-    y_rangeCorr = np.reshape(coords_proj[1,:], np.shape(rangeImage)) - 0.5
+    # x_rangeCorr = np.reshape(coords_proj[0,:], np.shape(rangeImage)) - 0.5
+    # y_rangeCorr = np.reshape(coords_proj[1,:], np.shape(rangeImage)) - 0.5
+    x_rangeCorr = np.reshape(coords_proj[0,:], np.shape(rangeImage))
+    y_rangeCorr = np.reshape(coords_proj[1,:], np.shape(rangeImage))
     
     rangeImage_corr[:,:,0] = x_rangeCorr
     rangeImage_corr[:,:,1] = y_rangeCorr
-    ###
 
+    ###
     # Fill the values from image into rangeImage
     ###
     rangeImage = image[(np.floor(rangeImage_corr[:,:,1])).astype(int), (np.floor(rangeImage_corr[:,:,0])).astype(int)]
     ###
 
-    return rangeImage
+    return rangeImage, rangeImage_corr
 
 
 # import cv2
+
 # # /home/colin/semesterThesis/code_conda_env/depth_matching/RES_LoFTR/monodepth2/000.png
 # # /home/colin/semesterThesis/conda_env/depth_matching/RES_SuperGlue/monodepth2/000.png
-# testimg = cv2.imread('/home/colin/semesterThesis/code_conda_env/depth_matching/RES_LoFTR/monodepth2/000.png')
-# testimg[50:100,120:150] = 0
+
+# testimg = cv2.imread('/home/colin/semesterThesis/code_conda_env/depth_matching/RESULT/monodepth2/000.png')
+# # testimg[50:100,120:150] = 0
 # K = np.array(  [[721.5377,   0.    , 609.5593],
 #                 [  0.    , 721.5377, 172.854 ],
 #                 [  0.    ,   0.    ,   1.    ]] )
 # v_res= 0.42
 # h_res= 0.35
 
-# test = rangeImagefromImage(testimg, K, v_res, h_res)
+# test, test_corr = rangeImagefromImage(testimg, K, v_res, h_res)
 # cv2.imwrite('test.png',test)
 # cv2.imwrite('orig.png', testimg)
 # print("end")
