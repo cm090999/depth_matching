@@ -4,6 +4,3 @@
 [submodule "SuperGluePretrainedNetwork"]
 	path = SuperGluePretrainedNetwork
 	url = https://github.com/magicleap/SuperGluePretrainedNetwork.git
-[submodule "ST_depth_correspondence"]
-	path = ST_depth_correspondence
-	url = https://github.com/cm090999/ST_depth_correspondence.git
