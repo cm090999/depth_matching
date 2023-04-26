@@ -60,6 +60,12 @@ class Calilbration():
         self.r_error_avg = None
         self.t_error_avg = None
 
+        # Average Number of Matches
+        self.numberMatches_avg = None
+
+        # Success rate: pnp problem solved / frames
+        self.successRate = None
+
         return
     
     def getModifiedImages(self,
@@ -127,6 +133,11 @@ class Calilbration():
 
         for i in range(self.n_agg-1):
             self.numberAggMatches[i] = None
+
+        self.successRate = 0
+        for i in range(self.nframes):
+            if self.numberAggMatches[i] >= 6:
+                self.successRate += 1
 
         return
     
@@ -199,7 +210,18 @@ class Calilbration():
 
         return
     
+    def getAverageNumberMatches(self):
+
+        matches = 0
+        for i in range(self.nframes):
+            matches += self.numberMatches[i]
+        self.numberMatches_avg = matches / self.nframes
+
+        return
+    
     def writeTo_TXT(self,txtpath,r_gt = None, t_gt = None):
+
+        self.getAverageNumberMatches()
 
         # Define dict to extract results
         resDict = { 'Number of Matches: ': self.numberMatches,
@@ -213,7 +235,9 @@ class Calilbration():
         avgDict = { 'Ground Truth Rotation: ': r_gt,
                     'Ground Truth Translation: ': t_gt,
                     'Average Translational Error: ': self.t_error_avg,
-                    'Average Rotational Error: ': self.r_error_avg
+                    'Average Rotational Error: ': self.r_error_avg,
+                    'Average Number of Matches: ': self.numberMatches_avg,
+                    'Success Rate: ': self.successRate
                     }
         
         # Define location to save results
