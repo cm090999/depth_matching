@@ -59,6 +59,8 @@ class Calilbration():
         self.t_error = [None] * self.nframes
         self.r_error_avg = None
         self.t_error_avg = None
+        self.r_error_stddev = None
+        self.t_error_stddev = None
 
         # Average Number of Matches
         self.numberMatches_avg = None
@@ -135,10 +137,13 @@ class Calilbration():
             self.numberAggMatches[i] = None
 
         self.successRate = 0
-        for i in range(self.nframes):
+        
+        for i in range(self.n_agg-1,self.nframes):
+            if self.numberAggMatches[i] is None:
+                continue
             if self.numberAggMatches[i] >= 6:
                 self.successRate += 1
-
+        self.successRate /= (self.nframes-self.n_agg+1)
         return
     
     def solve_pnp_agg(self, K_int, dist = np.zeros((1,4))):
@@ -208,6 +213,12 @@ class Calilbration():
         self.r_error_avg /= ntmp
         self.t_error_avg /= ntmp
 
+        r_error_avg_tmp = [x for x in self.r_error if x is not None]
+        t_error_avg_tmp = [x for x in self.t_error if x is not None]
+
+        self.r_error_stddev = np.std(np.array(r_error_avg_tmp))
+        self.t_error_stddev = np.std(np.array(t_error_avg_tmp))
+
         return
     
     def getAverageNumberMatches(self):
@@ -236,6 +247,8 @@ class Calilbration():
                     'Ground Truth Translation: ': t_gt,
                     'Average Translational Error: ': self.t_error_avg,
                     'Average Rotational Error: ': self.r_error_avg,
+                    'Standard Deviation of Translational Error: ': self.t_error_stddev,
+                    'Standard Deviation of Rotational Error: ': self.r_error_stddev,
                     'Average Number of Matches: ': self.numberMatches_avg,
                     'Success Rate: ': self.successRate
                     }

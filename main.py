@@ -28,11 +28,11 @@ if __name__ == "__main__":
     data_path = 'Dataset'
     date = '2011_09_26'
     drive = '0001'
-    nframes = 20
+    nframes = 100
     upsampleFactor = 6
     smoothing = False
     checkPC = False
-    aggregateMatches = 1
+    aggregateMatches = 16
 
     # Extract nframes timestamps
     kitti_raw = pk.raw(data_path, date, drive, frames=range(0, nframes, 1))
