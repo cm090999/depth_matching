@@ -430,21 +430,17 @@ def transformationVecLoss(t_gt, r_gt, t, r):
     cost_tra = 0
     cost_rot = 0
     
-    t = t.ravel()
-    r = r.ravel()
+    # t = t.ravel()
+    # r = r.ravel()
 
-    t_gt_tmp = t_gt.ravel()
-    r_gt_tmp = r_gt.ravel()
+    # t_gt_tmp = t_gt.ravel()
+    # r_gt_tmp = r_gt.ravel()
 
-    cost_tra = np.linalg.norm(t_gt_tmp)
+    cost_tra = np.linalg.norm(t)
 
-    rotmtrix = delta_rot_matrix(t_gt=t_gt,r_gt=r_gt_tmp,r=r,t=t)
+    rotmtrix = delta_rot_matrix(t_gt=t_gt,r_gt=r_gt,r=r,t=t)
     cost_rot = rotationError(rotmtrix)
 
     return cost_tra, cost_rot
-
-
-def pointCloudLoss(pc, T_gt, T):
-    return
 
 ###############
