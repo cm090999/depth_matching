@@ -413,15 +413,15 @@ def delta_rot_matrix(t_gt, r_gt, t, r):
     T_gt = rtvec_to_matrix(rvec=r_gt, tvec=t_gt)
     T = rtvec_to_matrix(rvec=r, tvec=t)
 
-    deltaT = np.matmul(T_gt * np.linalg.inv(T))
+    deltaT = np.matmul(T_gt, np.linalg.inv(T))
     return deltaT
 
 def rotationError(deltaT):
 
-    r_angleAxis = matrix_to_rtvec(deltaT)
-    np.linalg.norm(r_angleAxis)
+    r_angleAxis, _ = matrix_to_rtvec(deltaT)
+    err = np.linalg.norm(r_angleAxis)
 
-    return r_angleAxis
+    return err
 
 # Cost functions
 ##############

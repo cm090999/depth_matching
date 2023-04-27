@@ -183,13 +183,13 @@ class Calilbration():
                     visualizeCalibration(self.rgbImages[i], velodata[i], K_int, self.r_vec[i], self.t_vec[i], savePath=savepth)
         return
     
-    def calculateError(self,r_gt,t_gt, pnorm = 2):
+    def calculateError(self,r_gt,t_gt):
         
         # Get error of each sample
         for i in range(self.nframes):
             if self.t_vec[i] is None:
                 continue
-            cost_tra, cost_rot = transformationVecLoss(t_gt, r_gt, self.t_vec[i], self.r_vec[i], pnorm = pnorm)
+            cost_tra, cost_rot = transformationVecLoss(t_gt, r_gt, self.t_vec[i], self.r_vec[i])
             self.r_error[i] = cost_rot
             self.t_error[i] = cost_tra
 
