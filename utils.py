@@ -373,6 +373,9 @@ def visualizeCalibration(rgb, lidar, K_int, rvec, tvec, color_map = 'jet', size_
     pts, _ = np.shape(lidar)
     if pts == 0:
         ax.imshow(rgb)
+        if savePath != -1:
+            print('Saving Image')
+            plt.savefig(savePath, bbox_inches='tight', pad_inches=0, transparent = True, dpi = 256)
         return
 
     # Project LiDAR points onto image plane
@@ -389,6 +392,9 @@ def visualizeCalibration(rgb, lidar, K_int, rvec, tvec, color_map = 'jet', size_
 
     if npoints == 0:
         ax.imshow(rgb)
+        if savePath != -1:
+            print('Saving Image')
+            plt.savefig(savePath, bbox_inches='tight', pad_inches=0, transparent = True, dpi = 256)
         return
         
     depth_norm = (depth - np.min(depth)) / np.max(depth) * 255
