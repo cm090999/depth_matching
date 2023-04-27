@@ -408,10 +408,25 @@ def visualizeCalibration(rgb, lidar, K_int, rvec, tvec, color_map = 'jet', size_
 
     return
 
+def delta_rot_matrix(t_gt, r_gt, t, r):
+
+    T_gt = rtvec_to_matrix(rvec=r_gt, tvec=t_gt)
+    T = rtvec_to_matrix(rvec=r, tvec=t)
+
+    deltaT = np.matmul(T_gt * np.linalg.inv(T))
+    return deltaT
+
+def rotationError(deltaT):
+
+    r_angleAxis = matrix_to_rtvec(deltaT)
+    np.linalg.norm(r_angleAxis)
+
+    return r_angleAxis
+
 # Cost functions
 ##############
 
-def transformationVecLoss(t_gt, r_gt, t, r, pnorm = 2):
+def transformationVecLoss(t_gt, r_gt, t, r):
     cost_tra = 0
     cost_rot = 0
     
@@ -421,13 +436,12 @@ def transformationVecLoss(t_gt, r_gt, t, r, pnorm = 2):
     t_gt_tmp = t_gt.ravel()
     r_gt_tmp = r_gt.ravel()
 
-    for i in range(3):
-        cost_tra += (t_gt_tmp[i] - t[i])**(pnorm)
-    
-    for i in range(3):
-        cost_rot += (r_gt_tmp[i] - r[i])**(pnorm)
+    cost_tra = np.linalg.norm(t_gt_tmp)
 
-    return cost_tra**(1/pnorm), cost_rot**(1/pnorm)
+    rotmtrix = delta_rot_matrix(t_gt=t_gt,r_gt=r_gt_tmp,r=r,t=t)
+    cost_rot = rotationError(rotmtrix)
+
+    return cost_tra, cost_rot
 
 
 def pointCloudLoss(pc, T_gt, T):
